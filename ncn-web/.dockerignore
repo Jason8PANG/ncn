@@ -1,0 +1,22 @@
+# Node.js
+node:20-alpine
+
+# Dependencies
+node_modules
+npm-debug.log
+.git
+.gitignore
+.gitlab-ci.yml
+.vscode
+.idea
+*.md
+!README.md
+.env*
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+coverage
+.nyc_output
+dist
+*.log
+uploads
