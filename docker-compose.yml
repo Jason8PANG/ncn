@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # NCN Backend API
+  ncn-web:
+    build:
+      context: ./ncn-web
+      dockerfile: Dockerfile
+    container_name: ncn-web
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-1433}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - LDAP_URL=${LDAP_URL}
+      - LDAP_BASE_DN=${LDAP_BASE_DN}
+      - LDAP_BIND_DN=${LDAP_BIND_DN}
+      - LDAP_BIND_CREDENTIALS=${LDAP_BIND_CREDENTIALS}
+      - LDAP_SEARCH_FILTER=${LDAP_SEARCH_FILTER}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - NCN_ADMIN_LAN_IDS=${NCN_ADMIN_LAN_IDS}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - NCN_APP_URL=${NCN_APP_URL}
+    volumes:
+      - ncn-uploads:/app/uploads
+    networks:
+      - ncn-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # NCN Frontend
+  ncn-frontend:
+    build:
+      context: ./ncn-frontend
+      dockerfile: Dockerfile
+    container_name: ncn-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - ncn-web
+    networks:
+      - ncn-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  ncn-network:
+    driver: bridge
+
+volumes:
+  ncn-uploads:
+    driver: local

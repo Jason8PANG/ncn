@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+build/
+*.tgz
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Uploads
+uploads/
+*/uploads/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Docker volumes (local data)
+volumes/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Cookies files
+cookies*.txt
+
+# Legacy source (optional - can be ignored)
+ncn_source/
+
+# Docker files - keep these, remove this line
+# Dockerfile
+# docker-compose.yml
+# *.dockerignore
+
+# Secrets - NEVER commit these
+*.pem
+*.key
+*.crt
+secrets/
