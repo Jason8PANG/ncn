@@ -209,16 +209,16 @@ cp .env.example .env
 #### 2.3 启动服务
 ```bash
 # 构建并启动所有服务 (前端 + 后端)
-docker-compose up -d
+docker compose up -d
 
 # 查看服务状态
-docker-compose ps
+docker compose ps
 
 # 查看日志
-docker-compose logs -f
+docker compose logs -f
 
 # 停止服务
-docker-compose down
+docker compose down
 ```
 
 #### 2.4 访问应用
@@ -263,13 +263,13 @@ npm run build
 如果你只想运行后端或前端：
 ```bash
 # 只运行后端
-docker-compose up -d ncn-web
+docker compose up -d ncn-web
 
 # 只运行前端
-docker-compose up -d ncn-frontend
+docker compose up -d ncn-frontend
 
 # 重新构建镜像
-docker-compose build --no-cache
+docker compose build --no-cache
 ```
 
 ## 配置说明
