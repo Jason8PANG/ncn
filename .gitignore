@@ -17,6 +17,9 @@ build/
 uploads/
 */uploads/
 
+# WorkBuddy workspace files (do not commit)
+.workbuddy/
+
 # Logs
 logs/
 *.log
