@@ -25,7 +25,7 @@ function renderWithProviders(
 
     useSetRecoilState(authState)({
       isAuthenticated,
-      user: isAuthenticated ? { lanId: 'test123', displayName: 'Test User' } : null,
+      user: isAuthenticated ? { lanId: 'test123', displayName: 'Test User', email: 'test@test.com', department: 'QA' } : null,
       loading: false
     });
 
