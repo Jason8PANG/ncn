@@ -222,8 +222,8 @@ docker-compose down
 ```
 
 #### 2.4 访问应用
-- 前端: http://localhost:80
-- 后端 API: http://localhost:3001
+- 前端: http://localhost:7000
+- 后端 API: http://localhost:7001
 
 ### 3. 本地开发模式
 

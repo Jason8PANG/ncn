@@ -9,7 +9,7 @@ services:
     container_name: ncn-web
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "7001:3001"
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -50,7 +50,7 @@ services:
     container_name: ncn-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "7000:80"
     depends_on:
       - ncn-web
     networks:
