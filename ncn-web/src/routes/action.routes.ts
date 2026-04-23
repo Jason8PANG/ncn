@@ -11,10 +11,9 @@ import {
 import { logger } from '../utils/logger';
 import { sequelize } from '../models';
 import { sendNCNActionReminder } from '../utils/email';
+import { config } from '../config';
 
 const router = Router();
-
-const APP_URL = process.env.NCN_APP_URL || 'http://localhost:5173';
 
 // 根据姓名或 LAN ID 查询员工邮箱
 const getStaffEmail = async (nameOrLanId: string): Promise<string | null> => {
@@ -155,7 +154,7 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
           ncnEntry?.Part_ID || '',
           req.body.OwnerAction || '',
           actionDuedate || '',
-          APP_URL
+          config.appUrl
         ).catch(err => logger.error('[ACTION] Failed to send email to owner:', err));
         logger.info(`[ACTION] Email sent to ActionOwner: ${ownerEmail}`);
       }

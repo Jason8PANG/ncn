@@ -7,10 +7,9 @@ import { logger } from '../utils/logger';
 import { sequelize } from '../models';
 import { QueryTypes } from 'sequelize';
 import { sendNewNCNNotification } from '../utils/email';
+import { config } from '../config';
 
 const router = Router();
-
-const APP_URL = process.env.NCN_APP_URL || 'http://localhost:5173';
 
 // 根据姓名或 LAN ID 查询员工邮箱
 const getStaffEmail = async (nameOrLanId: string): Promise<string | null> => {
@@ -432,7 +431,7 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
           [meEmail],
           [],
           entryData.SerialNo,
-          APP_URL
+          config.appUrl
         ).catch(err => logger.error('[CREATE] Failed to send ME email:', err));
         logger.info(`[CREATE] Email sent to ME Engineer: ${meEmail}`);
       }

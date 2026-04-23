@@ -41,6 +41,6 @@ export const config = {
     maxSize: parseInt(process.env.MAX_FILE_SIZE || '10485760', 10) // 10MB
   },
 
-  appUrl: process.env.APP_URL || 'http://localhost:3000',
+  appUrl: process.env.NCN_APP_URL || 'http://localhost:3000',
   corsOrigins: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3001']
 };
