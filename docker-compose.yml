@@ -50,7 +50,7 @@ services:
     container_name: ncn-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "7001:80"
     depends_on:
       - ncn-web
     networks:
