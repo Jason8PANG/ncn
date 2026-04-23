@@ -1,9 +1,17 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+// Use relative path for Docker, or env var for local dev
+const getApiBaseUrl = () => {
+  // Docker: use relative path (nginx will proxy /api)
+  if (import.meta.env.VITE_API_BASE_URL === undefined) {
+    return '/api';
+  }
+  // Local dev: use explicit URL
+  return import.meta.env.VITE_API_BASE_URL;
+};
 
 export const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getApiBaseUrl(),
   withCredentials: true,
   timeout: 30000,
   headers: {
