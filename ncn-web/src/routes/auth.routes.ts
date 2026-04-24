@@ -168,16 +168,24 @@ router.get('/me', (req, res) => {
 
 // LDAP 连接测试接口
 router.post('/test-ldap', (req: Request, res: Response) => {
-  if (config.nodeEnv !== 'development') {
-    if (!(req.isAuthenticated && req.isAuthenticated())) {
-      return res.status(401).json({ error: 'Unauthorized - Please login' });
-    }
-    if (!isAdminRequest(req)) {
-      return res.status(403).json({ error: 'Forbidden - Admin only' });
+  const { testType } = req.body;
+
+  // connection 测试允许未登录访问（用于排查问题）
+  if (testType === 'connection') {
+    // 允许未登录访问
+  } else {
+    // 其他测试需要登录
+    if (config.nodeEnv !== 'development') {
+      if (!(req.isAuthenticated && req.isAuthenticated())) {
+        return res.status(401).json({ error: 'Unauthorized - Please login' });
+      }
+      if (!isAdminRequest(req)) {
+        return res.status(403).json({ error: 'Forbidden - Admin only' });
+      }
     }
   }
 
-  const { username, password, testType } = req.body;
+  const { username, password } = req.body;
 
   // 默认：只返回配置信息
   if (!testType || testType === 'config') {
