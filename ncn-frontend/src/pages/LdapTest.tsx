@@ -3,7 +3,8 @@ import { Form, Input, Button, Card, message, Alert, Space, Tag, Descriptions, Sp
 import { UserOutlined, LockOutlined, LinkOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:3000/api';
+// Use relative path for Docker, or env var for local dev
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export default function LdapTest() {
   const [loading, setLoading] = useState(false);
