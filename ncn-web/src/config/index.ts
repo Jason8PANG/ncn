@@ -19,7 +19,7 @@ export const config = {
     url: process.env.LDAP_URL || 'ldap://localhost:389',
     baseDN: process.env.LDAP_BASE_DN || 'DC=local,DC=com',
     bindDN: process.env.LDAP_BIND_DN || '',
-    bindCredentials: process.env.LDAP_BIND_PASSWORD || '',
+    bindCredentials: process.env.LDAP_BIND_CREDENTIALS || '',
     searchFilter: process.env.LDAP_SEARCH_FILTER || '(sAMAccountName={{username}})'
   },
 
