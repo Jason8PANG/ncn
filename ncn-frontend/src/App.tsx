@@ -32,13 +32,17 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
             setAuthState({ isAuthenticated: true, user: winResult.user, loading: false });
             return;
           }
-        } catch {
-          // Windows 自动登录失败，降级到手动登录页
+          // Windows 登录返回失败但不抛异常，说明服务端不支持，自动降级
+          logger.info('Windows auto-login not available, using manual login');
+        } catch (err: any) {
+          // Windows 自动登录失败（网络错误等），降级到手动登录
+          logger.info('Windows auto-login failed, using manual login');
         }
 
         // 3. 降级：显示手动登录页
         setAuthState({ isAuthenticated: false, user: null, loading: false });
       } catch {
+        // 任何异常都降级到手动登录页
         setAuthState({ isAuthenticated: false, user: null, loading: false });
       }
     };
@@ -47,6 +51,13 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
+
+// 添加 logger
+const logger = {
+  info: (msg: string) => console.log('[Auth]', msg),
+  warn: (msg: string) => console.warn('[Auth]', msg),
+  error: (msg: string) => console.error('[Auth]', msg)
+};
 
 function AppContent() {
   const { isAuthenticated, loading } = useRecoilValue(authState);

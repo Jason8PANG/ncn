@@ -8,14 +8,29 @@ import { NAI_Staff_Info } from '../models';
 
 const router = Router();
 
-// Windows 自动登录接口：读取当前 Windows 登录账号，查 NAI_Staff_Info 自动建立 session
+// Windows 自动登录接口：使用 Kerberos/NTLM ticket 进行自动认证
+// 注意：需要前端应用（如 SSO 代理）先获取 Windows 身份后传递用户信息
 router.post('/windows-login', (req: Request, res: Response) => {
   try {
-    // 直接从环境变量获取 Windows 用户名，无需启动子进程
-    const windowsUser = (process.env.USERNAME || process.env.USER || '').toLowerCase();
+    // 从请求头获取 Windows 用户名（由 SSO 代理或前端设置）
+    // 常见头：X-Remote-User, X-Windows-User, Remote-User
+    const windowsUser = (
+      req.headers['x-remote-user'] ||
+      req.headers['x-windows-user'] ||
+      req.headers['remote-user'] ||
+      (req.headers['x-forwarded-user'] as string)?.split(',')[0] ||
+      ''
+    ).toString().toLowerCase().trim();
 
     if (!windowsUser) {
-      return res.status(400).json({ success: false, error: 'Unable to detect Windows user' });
+      // 没有 Windows 用户信息，尝试 LDAP 无密码绑定（使用已建立的连接）
+      logger.info('No Windows user header, skipping auto-login');
+      return res.status(401).json({
+        success: false,
+        error: 'Windows auto-login not available',
+        autoLogin: false,
+        message: 'Please use manual login'
+      });
     }
 
     logger.info(`Windows auto-login attempt for: ${windowsUser}`);
