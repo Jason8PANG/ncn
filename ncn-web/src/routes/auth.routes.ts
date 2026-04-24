@@ -168,10 +168,10 @@ router.get('/me', (req, res) => {
 
 // LDAP 连接测试接口
 router.post('/test-ldap', (req: Request, res: Response) => {
-  const { testType } = req.body;
+  const { testType, username, password } = req.body;
 
-  // connection 测试允许未登录访问（用于排查问题）
-  if (testType === 'connection') {
+  // connection 和 auth 测试允许未登录访问（用于排查问题）
+  if (testType === 'connection' || testType === 'auth') {
     // 允许未登录访问
   } else {
     // 其他测试需要登录
@@ -184,8 +184,6 @@ router.post('/test-ldap', (req: Request, res: Response) => {
       }
     }
   }
-
-  const { username, password } = req.body;
 
   // 默认：只返回配置信息
   if (!testType || testType === 'config') {
