@@ -21,3 +21,9 @@ export const authState = atom<{
     loading: true
   }
 });
+
+// 标记认证初始化是否已完成（防止 StrictMode 重复调用）
+export const authInitializedState = atom<boolean>({
+  key: 'authInitializedState',
+  default: false
+});
