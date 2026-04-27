@@ -3,8 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import passport from 'passport';
-import session from 'express-session';
-import MSSQLStore from 'connect-mssql-v2';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import dotenv from 'dotenv';
 
@@ -15,6 +14,7 @@ import { config } from './config';
 import { logger } from './utils/logger';
 import { setupLdapStrategy } from './config/passport';
 import { sequelize } from './models';
+import { jwtCookieMiddleware } from './middleware/auth';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -36,13 +36,16 @@ app.use(helmet({
 // CORS configuration
 app.use(cors({
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-
     const allowedOrigins = config.corsOrigins || ['http://localhost:3001'];
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
+    if (
+      allowedOrigins.indexOf(origin) !== -1 ||
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://suzvweb02')
+    ) {
       callback(null, true);
     } else {
+      logger.warn(`CORS blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -58,27 +61,18 @@ app.use(morgan('combined', { stream: { write: (message) => logger.info(message.t
 app.use(express.json());
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files
-app.use(express.static(path.join(__dirname, '../public')));
+// Cookie parser（JWT Cookie 读取依赖）
+app.use(cookieParser());
 
-// Session configuration - use memory store for development
-// MSSQLStore requires session table in database, using simple memory store instead
-app.use(session({
-  secret: config.session.secret,
-  resave: false,
-  saveUninitialized: false,
-  // store: mssqlStore, // Commented out for development
-  cookie: {
-    secure: config.nodeEnv === 'production',
-    httpOnly: true,
-    maxAge: config.session.maxAge
-  }
-}));
+// JWT Cookie 验证中间件（将 Cookie 中的 JWT 解析到 req.user）
+app.use(jwtCookieMiddleware);
 
-// Passport initialization
+// Passport（仅用于 LDAP 认证策略，不再使用 session）
 setupLdapStrategy();
 app.use(passport.initialize());
-app.use(passport.session());
+
+// Static files
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -101,8 +95,8 @@ app.use((req: Request, res: Response) => {
 
 // Error handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  logger.error('Error:', err);
-  res.status(err instanceof Error && 'status' in err ? (err as any).status : 500).json({
+  logger.error('Unhandled error:', err.message);
+  res.status((err as any).status || 500).json({
     error: config.nodeEnv === 'development' ? err.message : 'Internal Server Error'
   });
 });
@@ -110,22 +104,14 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 // Database connection and server start
 const startServer = async () => {
   try {
-    // Test database connection
     await sequelize.authenticate();
     logger.info('Database connection established successfully.');
-
-    // Sync database (in development mode only)
-    if (config.nodeEnv === 'development') {
-      // await sequelize.sync({ alter: true });
-      logger.info('Database synchronized.');
-    }
 
     app.listen(config.port, () => {
       logger.info(`NCN Server running on port ${config.port} in ${config.nodeEnv} mode`);
     });
   } catch (error) {
-    logger.error('Unable to start server:', error);
-    // Continue running without database for frontend testing
+    logger.error('Unable to connect to database:', error);
     logger.warn('Starting server without database connection...');
     app.listen(config.port, () => {
       logger.info(`NCN Server running on port ${config.port} in ${config.nodeEnv} mode (limited functionality)`);
@@ -133,7 +119,6 @@ const startServer = async () => {
   }
 };
 
-// Prevent unhandled rejections from crashing the process
 process.on('unhandledRejection', (reason: any) => {
   logger.error('Unhandled Rejection:', reason);
 });

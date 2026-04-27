@@ -18,7 +18,10 @@ export const logout = async (): Promise<void> => {
 
 export const getCurrentUser = async (): Promise<IUser | null> => {
   const response = await api.get('/auth/me');
-  return response.data.user;
+  if (response.data.authenticated && response.data.user) {
+    return response.data.user;
+  }
+  return null;
 };
 
 export interface IWindowsLoginResponse {

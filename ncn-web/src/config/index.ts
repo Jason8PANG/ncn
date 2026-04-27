@@ -42,5 +42,11 @@ export const config = {
   },
 
   appUrl: process.env.NCN_APP_URL || 'http://localhost:3000',
-  corsOrigins: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3001']
+  corsOrigins: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3001'],
+
+  jwt: {
+    secret: process.env.JWT_SECRET || 'ncn-jwt-secret-change-in-production',
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',  // Cookie 有效期 7 天
+    cookieName: 'ncn_token'
+  }
 };
