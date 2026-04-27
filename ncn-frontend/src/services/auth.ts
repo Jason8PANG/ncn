@@ -17,11 +17,15 @@ export const logout = async (): Promise<void> => {
 };
 
 export const getCurrentUser = async (): Promise<IUser | null> => {
-  const response = await api.get('/auth/me');
-  if (response.data.authenticated && response.data.user) {
-    return response.data.user;
+  try {
+    const response = await api.get('/auth/me');
+    if (response.data.authenticated && response.data.user) {
+      return response.data.user;
+    }
+    return null;
+  } catch {
+    return null;
   }
-  return null;
 };
 
 export interface IWindowsLoginResponse {
@@ -32,6 +36,14 @@ export interface IWindowsLoginResponse {
 }
 
 export const windowsLogin = async (): Promise<IWindowsLoginResponse> => {
-  const response = await api.post('/auth/windows-login');
-  return response.data;
+  try {
+    const response = await api.post('/auth/windows-login');
+    return response.data;
+  } catch (err: any) {
+    // 401 正常返回，不抛异常，让上层降级到手动登录
+    if (err.response?.status === 401) {
+      return { success: false, autoLogin: false };
+    }
+    throw err;
+  }
 };
