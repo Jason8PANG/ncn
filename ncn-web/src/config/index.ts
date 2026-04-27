@@ -46,7 +46,7 @@ export const config = {
 
   jwt: {
     secret: process.env.JWT_SECRET || 'ncn-jwt-secret-change-in-production',
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',  // Cookie 有效期 7 天
+    expiresIn: process.env.JWT_EXPIRES_IN || '30d', // Cookie 有效期 30 天
     cookieName: 'ncn_token'
   }
 };
