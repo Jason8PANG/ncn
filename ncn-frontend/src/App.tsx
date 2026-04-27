@@ -10,57 +10,61 @@ import NCNEntry from './pages/NCNEntry';
 import IssueLog from './pages/IssueLog';
 import LdapTest from './pages/LdapTest';
 import ProtectedRoute from './components/ProtectedRoute';
-import { useEffect } from 'react';
-import { getCurrentUser, windowsLogin } from './services/auth';
+import { useEffect, useRef } from 'react';
+import { windowsLogin } from './services/auth';
 
-const logger = {
-  info: (msg: string) => console.log('[Auth]', msg),
-  warn: (msg: string) => console.warn('[Auth]', msg),
-  error: (msg: string) => console.error('[Auth]', msg)
-};
+const COOKIE_NAME = 'ncn_token';
+
+/** 解析 JWT payload（不解签名，只读 header+payload） */
+function parseJwtPayload(token: string): any | null {
+  try {
+    const base64 = token.split('.')[1];
+    const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+/** 从 Cookie 读取 JWT 并解析用户信息 */
+function getUserFromCookie(): { lanId: string; displayName: string; email: string; department: string; isAdmin: boolean } | null {
+  const match = document.cookie.match(new RegExp('(^| )' + COOKIE_NAME + '=([^;]+)'));
+  if (!match) return null;
+  const payload = parseJwtPayload(decodeURIComponent(match[2]));
+  if (!payload || !payload.lanId) return null;
+  return {
+    lanId: payload.lanId,
+    displayName: payload.displayName || payload.lanId,
+    email: payload.email || '',
+    department: payload.department || '',
+    isAdmin: payload.isAdmin || false
+  };
+}
 
 function AuthInitializer({ children }: { children: React.ReactNode }) {
   const setAuthState = useSetRecoilState(authState);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    let cancelled = false;
+    if (initialized.current) return;
+    initialized.current = true;
 
-    const initAuth = async () => {
-      try {
-        // 1. 检查 JWT Cookie 是否有效
-        const user = await getCurrentUser();
-        if (cancelled) return;
+    const user = getUserFromCookie();
+    if (user) {
+      setAuthState({ isAuthenticated: true, user, loading: false });
+      return;
+    }
 
-        if (user) {
-          setAuthState({ isAuthenticated: true, user, loading: false });
-          return;
-        }
-
-        // 2. 没有 Cookie，尝试 Windows 自动登录
-        try {
-          const winResult = await windowsLogin();
-          if (cancelled) return;
-
-          if (winResult.success && winResult.user) {
-            setAuthState({ isAuthenticated: true, user: winResult.user, loading: false });
-            return;
-          }
-          logger.info('Windows auto-login not available, using manual login');
-        } catch (err: any) {
-          logger.info('Windows auto-login failed, using manual login');
-        }
-
-        // 3. 降级到手动登录页
+    // 无 Cookie，尝试 Windows 自动登录
+    windowsLogin().then((result) => {
+      if (result.success && result.user) {
+        setAuthState({ isAuthenticated: true, user: result.user, loading: false });
+      } else {
         setAuthState({ isAuthenticated: false, user: null, loading: false });
-      } catch {
-        if (!cancelled) {
-          setAuthState({ isAuthenticated: false, user: null, loading: false });
-        }
       }
-    };
-
-    initAuth();
-    return () => { cancelled = true; };
+    }).catch(() => {
+      setAuthState({ isAuthenticated: false, user: null, loading: false });
+    });
   }, [setAuthState]);
 
   return <>{children}</>;
