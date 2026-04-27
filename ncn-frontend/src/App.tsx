@@ -47,6 +47,21 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (initialized) return;
 
+    const isLoginPage = window.location.pathname === '/login';
+
+    // 登录页：只检查 Cookie，不触发 windowsLogin
+    if (isLoginPage) {
+      const user = getUserFromCookie();
+      if (user) {
+        setAuthState({ isAuthenticated: true, user, loading: false });
+      } else {
+        setAuthState({ isAuthenticated: false, user: null, loading: false });
+      }
+      setInitialized(true);
+      return;
+    }
+
+    // 其他页面：先读 Cookie，Cookie 无效才尝试 windowsLogin
     const user = getUserFromCookie();
     if (user) {
       setAuthState({ isAuthenticated: true, user, loading: false });
