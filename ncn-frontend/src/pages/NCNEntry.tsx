@@ -528,8 +528,8 @@ export default function NCNEntry() {
           <Divider orientation="left">Analysis & Assignment</Divider>
           <Row gutter={16}>
             <Col span={6}>
-              <Form.Item name="QualityEngineer" label="Quality Engineer" rules={[{ required: true }]}>
-                <Select options={qeOptions} placeholder="Select QE Engineer" />
+              <Form.Item name="QualityEngineer" label="Quality Engineer">
+                <Select options={qeOptions} placeholder="Select QE Engineer" allowClear />
               </Form.Item>
             </Col>
             <Col span={6}>
