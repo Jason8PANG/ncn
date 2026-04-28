@@ -2,11 +2,11 @@ import { Router, Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { NCN_Entry, NCN_Action_Detail, NAI_Staff_Info, Code_Table } from '../models';
 import { isAuthenticated, getCurrentUserLanId } from '../middleware/auth';
-import { canEditNCNEntry, canCloseNCNEntry, canDeleteNCNEntry } from '../middleware/authorization';
+import { canEditNCNEntry, canCloseNCNEntry, canDeleteNCNEntry, canReopenNCNEntry } from '../middleware/authorization';
 import { logger } from '../utils/logger';
 import { sequelize } from '../models';
 import { QueryTypes } from 'sequelize';
-import { sendNewNCNNotification } from '../utils/email';
+import { sendNewNCNNotification, sendNCNUpdateNotification } from '../utils/email';
 import { config } from '../config';
 
 const router = Router();
@@ -50,7 +50,10 @@ const EDITABLE_ENTRY_FIELDS = new Set([
   'Owner',
   'OwnerMail',
   'ME_Engineer',
+  'ME_EngineerEmail',
   'QualityEngineer',
+  'QualityEngineerEmail',
+  'OwnerEmail',
   'FilePath',
   'Comments',
   'LineLeader'
@@ -210,7 +213,7 @@ router.get('/owner/options', isAuthenticated, async (req: Request, res: Response
       order: [['Department', 'ASC']]
     });
 
-    let owners: { Lan_ID: string; Staff_Name: string }[] = [];
+    let owners: { Lan_ID: string; Staff_Name: string; Email_Addr: string }[] = [];
     if (dept && typeof dept === 'string') {
       owners = await NAI_Staff_Info.findAll({
         where: {
@@ -219,7 +222,7 @@ router.get('/owner/options', isAuthenticated, async (req: Request, res: Response
           Leave_Date: null,
           Lan_ID: { [Op.ne]: '' }
         },
-        attributes: ['Lan_ID', 'Staff_Name'],
+        attributes: ['Lan_ID', 'Staff_Name', 'Email_Addr'],
         order: [['Lan_ID', 'ASC']]
       });
     }
@@ -228,7 +231,7 @@ router.get('/owner/options', isAuthenticated, async (req: Request, res: Response
       success: true,
       data: {
         departments: departments.map((d: any) => d.Department),
-        owners: owners.map(o => ({ lanId: o.Lan_ID, name: o.Staff_Name }))
+        owners: owners.map(o => ({ lanId: o.Lan_ID, name: o.Staff_Name, email: o.Email_Addr }))
       }
     });
   } catch (error) {
@@ -264,14 +267,22 @@ router.get('/deep-analysis/options', isAuthenticated, async (req: Request, res: 
 
 router.get('/me-engineer/options', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    // 从 Code_Table 获取 ME Engineers，参考原始 NCN_Entrys.aspx.cs
     const engineers = await Code_Table.findAll({
-      where: { Code_Category: 'NCN_ME', Status: 'Active' },
-      attributes: ['Code_Description'],
+      where: {
+        Code_Category: 'NCN_ME',
+        Status: 'Active'
+      },
+      attributes: ['Code', 'Code_Description'],
       order: [['Code_Description', 'ASC']]
     });
-    const options = Array.from(new Set(
-      engineers.map((row: any) => String(row.Code_Description || '').trim()).filter(Boolean)
-    ));
+
+    // 返回格式：{ value: "Code_Description", label: "Code_Description" }
+    const options = engineers.map((e: any) => ({
+      value: e.Code_Description,
+      label: e.Code_Description
+    }));
+
     res.json({ success: true, data: options });
   } catch (error) {
     logger.error('Error fetching ME Engineer options:', error);
@@ -281,14 +292,22 @@ router.get('/me-engineer/options', isAuthenticated, async (req: Request, res: Re
 
 router.get('/qe-engineer/options', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    // 从 Code_Table 获取 QE Engineers，参考原始 NCN_Entrys.aspx.cs
     const engineers = await Code_Table.findAll({
-      where: { Code_Category: 'NCN_QE', Status: 'Active' },
-      attributes: ['Code_Description'],
+      where: {
+        Code_Category: 'NCN_QE',
+        Status: 'Active'
+      },
+      attributes: ['Code', 'Code_Description'],
       order: [['Code_Description', 'ASC']]
     });
-    const options = Array.from(new Set(
-      engineers.map((row: any) => String(row.Code_Description || '').trim()).filter(Boolean)
-    ));
+
+    // 返回格式：{ value: "Code_Description", label: "Code_Description" }
+    const options = engineers.map((e: any) => ({
+      value: e.Code_Description,
+      label: e.Code_Description
+    }));
+
     res.json({ success: true, data: options });
   } catch (error) {
     logger.error('Error fetching QE Engineer options:', error);
@@ -423,17 +442,41 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
 
     logger.info(`[CREATE] NCN Entry created successfully: ${entryData.SerialNo} by ${lanId}`);
 
-    // 发送邮件通知 ME Engineer
-    if (entryData.ME_Engineer) {
+    // 准备 NCN 详情数据用于邮件
+    const ncnEmailData = {
+      ncnType: entryData.NCN_Type,
+      sbu: entryData.SBU,
+      partId: entryData.Part_ID,
+      wo: entryData.WO,
+      defectDescription: entryData.Defect_Description,
+      finder: entryData.Finder,
+      finderDept: entryData.Finder_Dept
+    };
+
+    // 发送邮件通知 ME Engineer（fire-and-forget 模式，不阻塞响应）
+    if (entryData.ME_EngineerEmail) {
+      sendNewNCNNotification(
+        [entryData.ME_EngineerEmail],
+        [],
+        entryData.SerialNo,
+        config.appUrl,
+        ncnEmailData
+      ).catch(err => logger.error('[CREATE] Failed to send ME email:', err));
+      logger.info(`[CREATE] Email queued for ME Engineer: ${entryData.ME_EngineerEmail}`);
+    } else if (entryData.ME_Engineer) {
+      // 如果前端没有提交邮箱，尝试从数据库查找
       const meEmail = await getStaffEmail(entryData.ME_Engineer);
       if (meEmail) {
         sendNewNCNNotification(
           [meEmail],
           [],
           entryData.SerialNo,
-          config.appUrl
+          config.appUrl,
+          ncnEmailData
         ).catch(err => logger.error('[CREATE] Failed to send ME email:', err));
-        logger.info(`[CREATE] Email sent to ME Engineer: ${meEmail}`);
+        logger.info(`[CREATE] Email queued for ME Engineer (from DB): ${meEmail}`);
+      } else {
+        logger.warn(`[CREATE] ME Engineer email not found for: ${entryData.ME_Engineer}`);
       }
     }
 
@@ -500,9 +543,61 @@ router.put('/:rowid/close', isAuthenticated, async (req: Request, res: Response)
   }
 });
 
-router.put('/:rowid', isAuthenticated, async (req: Request, res: Response) => {
+// Reopen NCN Entry - 将状态从 Closed 改回 On-going（仅 QE 或 Admin）
+router.put('/:rowid/reopen', isAuthenticated, async (req: Request, res: Response) => {
   let transaction;
 
+  try {
+    const { rowid } = req.params;
+    const lanId = getCurrentUserLanId(req);
+
+    logger.info(`[REOPEN] rowid=${rowid}, user=${lanId}`);
+
+    const entry = await NCN_Entry.findByPk(rowid);
+    if (!entry) {
+      logger.warn(`[REOPEN] NCN Entry not found: rowid=${rowid}`);
+      return res.status(404).json({ error: 'NCN Entry not found' });
+    }
+
+    // 只有 QE 或 Admin 可以恢复 NCN Entry
+    if (!canReopenNCNEntry(req, entry)) {
+      logger.warn(`[REOPEN] Permission denied for user=${lanId}, QE=${entry.QualityEngineer}`);
+      return res.status(403).json({ error: 'Forbidden - Only Quality Engineer or Admin can reopen this NCN entry' });
+    }
+
+    // NCN 必须已关闭才能恢复
+    if (entry.Status !== 'Closed') {
+      logger.warn(`[REOPEN] NCN is not closed: SerialNo=${entry.SerialNo}, Status=${entry.Status}`);
+      return res.status(400).json({ error: 'NCN is not closed, cannot reopen' });
+    }
+
+    transaction = await sequelize.transaction();
+    const updateDate = new Date().toISOString().substring(0, 10); // YYYY-MM-DD
+    await entry.update({
+      Status: 'On-going',
+      CloseBy: '',
+      CloseDate: '',
+      UpdateBy: lanId,
+      UpdateDate: updateDate
+    }, { transaction });
+    await transaction.commit();
+
+    logger.info(`[REOPEN] Success: SerialNo=${entry.SerialNo}, Status changed from Closed to On-going`);
+
+    // 刷新 entry 以获取最新数据
+    const updatedEntry = await NCN_Entry.findByPk(rowid);
+    res.json({ success: true, data: updatedEntry });
+  } catch (error: any) {
+    if (transaction) {
+      await transaction.rollback();
+    }
+    logger.error('[REOPEN] Error:', error);
+    const errorMessage = error?.message || error?.original?.message || 'Unknown error';
+    res.status(500).json({ error: `Failed to reopen NCN Entry: ${errorMessage}` });
+  }
+});
+
+router.put('/:rowid', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const { rowid } = req.params;
     const lanId = getCurrentUserLanId(req);
@@ -528,10 +623,6 @@ router.put('/:rowid', isAuthenticated, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid NCN_Type' });
     }
 
-    if (updateData.Finder_Date && !isValidDate(updateData.Finder_Date)) {
-      return res.status(400).json({ error: 'Finder_Date must be a valid date' });
-    }
-
     const entry = await NCN_Entry.findByPk(rowid);
     if (!entry) {
       logger.warn(`[UPDATE] NCN Entry not found: rowid=${rowid}`);
@@ -550,21 +641,8 @@ router.put('/:rowid', isAuthenticated, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'NCN has been closed and cannot be modified' });
     }
 
-    if (updateData.Finder_Date) {
-      // 解析 MM/DD/YYYY 或 YYYY-MM-DD 格式
-      const finderDateStr = String(updateData.Finder_Date);
-      let finderDate: Date;
-      if (finderDateStr.includes('/')) {
-        const parts = finderDateStr.split('/');
-        finderDate = new Date(parseInt(parts[2], 10), parseInt(parts[0], 10) - 1, parseInt(parts[1], 10));
-      } else {
-        finderDate = new Date(finderDateStr);
-      }
-      if (!Number.isNaN(finderDate.getTime())) {
-        updateData.Week = getWeekOfYear(finderDate).toString();
-        updateData.Month = (finderDate.getMonth() + 1).toString();
-      }
-    }
+    // UPDATE 时不更新 Finder_Date，保留原有值
+    delete updateData.Finder_Date;
 
     const updateDate = new Date().toISOString().substring(0, 10); // YYYY-MM-DD
     updateData.UpdateBy = lanId;
@@ -572,25 +650,56 @@ router.put('/:rowid', isAuthenticated, async (req: Request, res: Response) => {
 
     logger.info(`[UPDATE] Final updateData:`, JSON.stringify(updateData, null, 2));
 
-    // Start transaction only right before the actual write
-    transaction = await sequelize.transaction();
-    const updateResult = await entry.update(updateData, { transaction });
-    await transaction.commit();
+    // 直接更新，不使用事务
+    const updateResult = await entry.update(updateData);
 
     // Sequelize 7 中 update 返回 { affectedCount: number }
-    const affectedCount = typeof updateResult === 'object' && 'affectedCount' in updateResult 
-      ? updateResult.affectedCount 
+    const affectedCount = typeof updateResult === 'object' && 'affectedCount' in updateResult
+      ? updateResult.affectedCount
       : 1;
 
     logger.info(`[UPDATE] Success: SerialNo=${entry.SerialNo}, affectedCount=${affectedCount}`);
 
     // 刷新 entry 以获取最新数据
     const updatedEntry = await NCN_Entry.findByPk(rowid);
+
+    // 发送邮件通知 Quality Engineer 和 Owner
+    const emailRecipients: string[] = [];
+    const ncnEmailData = {
+      ncnType: updateData.NCN_Type || entry.NCN_Type,
+      sbu: updateData.SBU || entry.SBU,
+      partId: updateData.Part_ID || entry.Part_ID,
+      wo: updateData.WO || entry.WO,
+      defectDescription: updateData.Defect_Description || entry.Defect_Description,
+      qualityEngineer: updateData.QualityEngineer || entry.QualityEngineer,
+      owner: updateData.Owner || entry.Owner,
+      ownerDept: updateData.OwnerDept || entry.OwnerDept,
+      updatedBy: lanId
+    };
+
+    // 添加 Quality Engineer 邮箱
+    if (updateData.QualityEngineerEmail) {
+      emailRecipients.push(updateData.QualityEngineerEmail);
+    }
+    // 添加 Owner 邮箱
+    if (updateData.OwnerEmail) {
+      emailRecipients.push(updateData.OwnerEmail);
+    }
+
+    // 发送通知邮件（fire-and-forget 模式，不阻塞响应）
+    if (emailRecipients.length > 0) {
+      // 不等待，直接发送，错误由 .catch 处理
+      sendNCNUpdateNotification(
+        emailRecipients,
+        entry.SerialNo,
+        config.appUrl,
+        ncnEmailData
+      ).catch(err => logger.error('[UPDATE] Failed to send update notification email:', err));
+      logger.info(`[UPDATE] Update notification email queued for: ${emailRecipients.join(', ')}`);
+    }
+
     res.json({ success: true, data: updatedEntry, affectedCount });
   } catch (error: any) {
-    if (transaction) {
-      await transaction.rollback();
-    }
     logger.error('[UPDATE] Error:', error);
     const errorMessage = error?.message || error?.original?.message || 'Unknown error';
     res.status(500).json({ error: `Failed to update NCN Entry: ${errorMessage}` });

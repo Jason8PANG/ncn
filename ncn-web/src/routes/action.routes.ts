@@ -10,7 +10,7 @@ import {
 } from '../middleware/authorization';
 import { logger } from '../utils/logger';
 import { sequelize } from '../models';
-import { sendNCNActionReminder } from '../utils/email';
+import { sendNCNActionReminder, sendQECloseNotification } from '../utils/email';
 import { config } from '../config';
 
 const router = Router();
@@ -103,6 +103,12 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
     if (!canManageActionOnEntry(req, entry)) {
       await transaction.rollback();
       return res.status(403).json({ error: 'Forbidden - No permission to create action for this NCN' });
+    }
+
+    // NCN 已关闭，禁止增加 Action
+    if (entry.Status === 'Closed') {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'NCN is closed and cannot add new actions' });
     }
 
     // 直接使用日期字符串，避免时区问题
@@ -374,18 +380,33 @@ async function checkAndCloseNCN(ncnId: number, lanId: string, transaction?: any)
     });
 
     if (!openActions) {
+      // 所有 action 都已关闭，发送邮件通知 Quality Engineer
       const ncn = await NCN_Entry.findByPk(ncnId, { transaction });
-      if (ncn && ncn.NCN_Type === 'A') {
-        const closeDate = new Date().toISOString().substring(0, 10); // YYYY-MM-DD
-        const updateDate = new Date().toISOString().substring(0, 10); // YYYY-MM-DD
-        await ncn.update({
-          Status: 'Closed',
-          CloseBy: lanId,
-          CloseDate: closeDate,
-          UpdateBy: lanId,
-          UpdateDate: updateDate
-        }, { transaction });
-        logger.info(`NCN ${ncnId} auto-closed (Type A, all actions completed)`);
+      if (ncn) {
+        const qeEmail = await getStaffEmail(ncn.QualityEngineer || '');
+        if (qeEmail) {
+          // 发送邮件通知 QE 可以关闭 NCN
+          sendQECloseNotification(
+            qeEmail,
+            ncn.SerialNo,
+            config.appUrl
+          ).catch(err => logger.error('[ACTION] Failed to send QE close notification:', err));
+          logger.info(`[ACTION] QE close notification sent to ${qeEmail} for NCN ${ncn.SerialNo}`);
+        }
+
+        // Type A 的 NCN 自动关闭
+        if (ncn.NCN_Type === 'A') {
+          const closeDate = new Date().toISOString().substring(0, 10); // YYYY-MM-DD
+          const updateDate = new Date().toISOString().substring(0, 10); // YYYY-MM-DD
+          await ncn.update({
+            Status: 'Closed',
+            CloseBy: lanId,
+            CloseDate: closeDate,
+            UpdateBy: lanId,
+            UpdateDate: updateDate
+          }, { transaction });
+          logger.info(`NCN ${ncnId} auto-closed (Type A, all actions completed)`);
+        }
       }
     }
   } catch (error) {

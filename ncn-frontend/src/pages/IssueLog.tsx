@@ -5,8 +5,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, EditOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getActions, createAction, updateAction, closeAction, deleteAction } from '../services/action';
-import { getOwnerOptions } from '../services/entry';
-import type { INCN_Action_Detail } from '../types';
+import { getOwnerOptions, getNCNEntry } from '../services/entry';
+import type { INCN_Action_Detail, INCN_Entry } from '../types';
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -19,6 +19,7 @@ export default function IssueLog() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingAction, setEditingAction] = useState<INCN_Action_Detail | null>(null);
   const [form] = Form.useForm();
+  const [ncnStatus, setNcnStatus] = useState<string>('');
 
   // Action Department/Owner 联动下拉状态
   const [actionDeptOptions, setActionDeptOptions] = useState<{ value: string; label: string }[]>([]);
@@ -30,6 +31,16 @@ export default function IssueLog() {
     if (!id) return;
     setLoading(true);
     try {
+      // 先获取 NCN 状态
+      try {
+        const ncnResponse = await getNCNEntry(parseInt(id, 10));
+        if (ncnResponse.success && ncnResponse.data) {
+          setNcnStatus(ncnResponse.data.Status || '');
+        }
+      } catch (ncnError) {
+        console.error('Failed to load NCN info:', ncnError);
+      }
+
       const response = await getActions(parseInt(id, 10));
       if (response.success && response.data) {
         setCurrentActions(response.data.currentActions || []);
@@ -320,6 +331,7 @@ export default function IssueLog() {
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => handleAddAction('C')}
+            disabled={ncnStatus === 'Closed'}
           >
             Add Current Action
           </Button>
@@ -341,6 +353,7 @@ export default function IssueLog() {
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => handleAddAction('F')}
+            disabled={ncnStatus === 'Closed'}
           >
             Add Future Action
           </Button>

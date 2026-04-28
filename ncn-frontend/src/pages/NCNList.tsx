@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Table, Card, Form, Input, Select, Button, Space, DatePicker, Tag, Typography, Dropdown } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { MenuProps } from 'antd';
-import { SearchOutlined, PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOutlined, DeleteOutlined, MoreOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOutlined, DeleteOutlined, MoreOutlined, UndoOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useRecoilValue } from 'recoil';
 import { authState } from '../state/auth';
 import { queryNCNs } from '../services/ncn';
-import { closeNCNEntry, deleteNCNEntry } from '../services/entry';
+import { closeNCNEntry, deleteNCNEntry, reopenNCNEntry } from '../services/entry';
 import { Modal, message } from 'antd';
 import type { INCN_Entry, INCNQueryParams } from '../types';
 import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -21,6 +22,7 @@ export default function NCNList() {
   const [total, setTotal] = useState(0);
   const [form] = Form.useForm();
   const { user } = useRecoilValue(authState);
+  const navigate = useNavigate();
 
   const columns: ColumnsType<INCN_Entry> = [
     {
@@ -121,6 +123,14 @@ export default function NCNList() {
             danger: true,
             onClick: () => handleCloseNCN(record)
           });
+        } else {
+          // NCN 已关闭时，显示恢复按钮（只有 QE Owner 或 Admin 可用）
+          menuItems.push({
+            key: 'reopen',
+            icon: <UndoOutlined />,
+            label: 'Reopen NCN',
+            onClick: () => handleReopenNCN(record)
+          });
         }
         
         if (user?.isAdmin) {
@@ -139,13 +149,13 @@ export default function NCNList() {
               type="link"
               size="small"
               icon={<EditOutlined />}
-              onClick={() => window.location.href = `/ncn-entry/${record.ROWID}`}
+              onClick={() => navigate(`/ncn-entry/${record.ROWID}`)}
             />
             <Button
               type="link"
               size="small"
               icon={<EyeOutlined />}
-              onClick={() => window.location.href = `/issue-log/${record.ROWID}`}
+              onClick={() => navigate(`/issue-log/${record.ROWID}`)}
             />
             {menuItems.length > 0 && (
               <Dropdown
@@ -218,6 +228,34 @@ export default function NCNList() {
     });
   };
 
+  const handleReopenNCN = async (record: INCN_Entry) => {
+    Modal.confirm({
+      title: 'Reopen NCN',
+      content: (
+        <div>
+          <p>Are you sure you want to reopen NCN <strong>{record.SerialNo}</strong>?</p>
+          <p style={{ color: '#faad14', marginTop: 8 }}>This will change the status from Closed back to On-going. Only Quality Engineer or Admin can perform this action.</p>
+        </div>
+      ),
+      okText: 'Yes, Reopen',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          const response = await reopenNCNEntry(record.ROWID!);
+          if (response.success) {
+            message.success(`NCN ${record.SerialNo} has been reopened`);
+            // 刷新列表
+            handleSearch(form.getFieldsValue());
+          } else {
+            message.error(response.error || 'Failed to reopen NCN');
+          }
+        } catch (error: any) {
+          message.error(error.response?.data?.error || 'Failed to reopen NCN');
+        }
+      }
+    });
+  };
+
   const handleSearch = async (values: any) => {
     setLoading(true);
     try {
@@ -244,6 +282,74 @@ export default function NCNList() {
     }
   };
 
+  // 导出 Excel 功能
+  const handleExportExcel = () => {
+    if (data.length === 0) {
+      message.warning('No data to export');
+      return;
+    }
+
+    // 定义导出的列
+    const exportColumns = [
+      { header: 'Serial No', dataIndex: 'SerialNo' },
+      { header: 'Type', dataIndex: 'NCN_Type' },
+      { header: 'WO', dataIndex: 'WO' },
+      { header: 'Part ID', dataIndex: 'Part_ID' },
+      { header: 'Customer', dataIndex: 'Customer' },
+      { header: 'SBU', dataIndex: 'SBU_Des' },
+      { header: 'Finder', dataIndex: 'Finder' },
+      { header: 'Finder Date', dataIndex: 'Finder_Date' },
+      { header: 'Status', dataIndex: 'Status' },
+      { header: 'Owner', dataIndex: 'Owner' },
+      { header: 'Owner Email', dataIndex: 'OwnerEmail' },
+      { header: 'Quality Engineer', dataIndex: 'QualityEngineer' },
+      { header: 'ME Engineer', dataIndex: 'ME_Engineer' },
+      { header: 'Defect Rate', dataIndex: 'DefectRate' },
+      { header: 'Defect Description', dataIndex: 'Defect_Description' },
+      { header: 'Root Cause', dataIndex: 'Root_Cause' },
+      { header: 'Analysis & Assignment', dataIndex: 'Analysis_Assignment' },
+      { header: 'Corrective Action', dataIndex: 'Corrective_Action' },
+      { header: 'Preventive Action', dataIndex: 'Preventive_Action' },
+      { header: 'Close By', dataIndex: 'CloseBy' },
+      { header: 'Close Date', dataIndex: 'CloseDate' },
+      { header: 'Line Leader', dataIndex: 'LineLeader' },
+      { header: 'Comments', dataIndex: 'Comments' }
+    ];
+
+    // 转换数据
+    const exportData = data.map(row => {
+      const newRow: Record<string, any> = {};
+      exportColumns.forEach(col => {
+        let value = row[col.dataIndex as keyof INCN_Entry];
+        // 格式化日期
+        if (col.dataIndex === 'Finder_Date' || col.dataIndex === 'CloseDate') {
+          value = value ? dayjs(value as string).format('YYYY-MM-DD') : '';
+        }
+        newRow[col.header] = value ?? '';
+      });
+      return newRow;
+    });
+
+    // 创建工作簿和工作表
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'NCN List');
+
+    // 设置列宽
+    ws['!cols'] = [
+      { wch: 15 }, { wch: 8 }, { wch: 12 }, { wch: 15 }, { wch: 12 },
+      { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 15 },
+      { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 30 },
+      { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 12 }, { wch: 12 },
+      { wch: 12 }, { wch: 30 }
+    ];
+
+    // 生成文件名
+    const fileName = `NCN_Export_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    message.success(`Exported ${data.length} records to ${fileName}`);
+  };
+
   useEffect(() => {
     handleSearch({});
   }, []);
@@ -255,7 +361,7 @@ export default function NCNList() {
         <Button
           type="primary"
           icon={<PlusOutlined />}
-          onClick={() => window.location.href = '/ncn-entry'}
+          onClick={() => navigate('/ncn-entry')}
         >
           New NCN
         </Button>
@@ -305,6 +411,9 @@ export default function NCNList() {
                 Search
               </Button>
               <Button onClick={() => form.resetFields()}>Reset</Button>
+              <Button icon={<DownloadOutlined />} onClick={handleExportExcel}>
+                Export
+              </Button>
             </Space>
           </Form.Item>
         </Form>

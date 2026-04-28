@@ -105,7 +105,7 @@ export default function NCNEntry() {
     try {
       const response = await getOwnerOptions(dept);
       if (response.success && response.data?.owners) {
-        const options = response.data.owners.map(o => ({
+        const options = response.data.owners.map((o: any) => ({
           value: o.lanId,
           label: `${o.lanId} - ${o.name}`
         }));
@@ -125,7 +125,10 @@ export default function NCNEntry() {
     try {
       const response = await getMEEngineerOptions();
       if (response.success && Array.isArray(response.data)) {
-        const options = response.data.map(item => ({ value: item, label: item }));
+        const options = response.data.map((item: any) => ({
+          value: item.value || item,
+          label: item.label || item
+        }));
         setMeOptions(options);
       }
     } catch (error) {
@@ -137,7 +140,10 @@ export default function NCNEntry() {
     try {
       const response = await getQEEngineerOptions();
       if (response.success && Array.isArray(response.data)) {
-        const options = response.data.map(item => ({ value: item, label: item }));
+        const options = response.data.map((item: any) => ({
+          value: item.value || item,
+          label: item.label || item
+        }));
         setQeOptions(options);
       }
     } catch (error) {
@@ -219,7 +225,15 @@ export default function NCNEntry() {
           setSbuDesOptions([]);
         }
         if (data.OwnerDept) {
-          loadOwnerOptions(data.OwnerDept);
+          loadOwnerOptions(data.OwnerDept).then(() => {
+            // 回填 Owner（编辑模式下，Owner 值需要与新的选项格式匹配）
+            if (data.Owner) {
+              const ownerOpt = ownerOptions.find(o => o.label.startsWith(data.Owner));
+              if (ownerOpt) {
+                form.setFieldsValue({ Owner: ownerOpt.value });
+              }
+            }
+          });
         }
         if (data.Issue_Type) {
           loadDeepAnalysisOptions(data.Issue_Type).then(() => {
@@ -284,21 +298,39 @@ export default function NCNEntry() {
         return;
       }
 
-      // 移除 EmpId 字段，只保留姓名
+      // ME_Engineer 和 QualityEngineer 直接存储 Code_Description（从 Code_Table 获取）
+      // Owner 需要通过 Lan_ID 获取邮箱
+      const getEmailByLanId = async (lanId: string): Promise<string> => {
+        if (!lanId) return '';
+        try {
+          const response = await lookupStaffByEmpId(lanId);
+          return response?.data?.Email_Addr || '';
+        } catch {
+          return '';
+        }
+      };
+
+      // 移除 EmpId 字段
       // 编辑时也移除 SerialNo（不允许修改）和 UpdateBy（后端自动设置）
       const { FinderEmpId, LineLeaderEmpId, SerialNo, ...restValues } = values;
-      
+
       // 格式化日期为 MM/DD/YYYY 格式
       const formatDate = (d: any) => {
         if (!d) return '';
         const date = dayjs(d);
         return date.format('MM/DD/YYYY');
       };
-      
+
+      // 只为 Owner 获取邮箱
+      const ownerEmail = await getEmailByLanId(values.Owner || '');
+
       const data = {
         ...restValues,
         // 使用 MM/dd/yyyy 格式（与原始 .NET 代码一致）
-        Finder_Date: formatDate(values.Finder_Date)
+        Finder_Date: formatDate(values.Finder_Date),
+        // ME_Engineer 和 QualityEngineer 直接存储 Code_Description
+        // Owner 存储 Lan_ID
+        OwnerEmail: ownerEmail
       };
 
       // Debug: 打印提交的数据
@@ -502,7 +534,7 @@ export default function NCNEntry() {
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item name="Defect_Description" label="Defect Description" rules={[{ required: true }]}>
-                <TextArea rows={4} placeholder="Describe the defect" />
+                <TextArea rows={2} placeholder="Describe the defect" />
               </Form.Item>
             </Col>
           </Row>
@@ -514,8 +546,8 @@ export default function NCNEntry() {
               </Form.Item>
             </Col>
             <Col span={4}>
-              <Form.Item name="Defect_Rate" label="Defect Rate" rules={[{ required: true }]}>
-                <Input placeholder="Defect Rate (%)" />
+              <Form.Item name="Defect_Rate" label="Defect Rate (%)">
+                <Input type="number" placeholder="0" />
               </Form.Item>
             </Col>
             <Col span={8}>
@@ -525,15 +557,17 @@ export default function NCNEntry() {
             </Col>
           </Row>
 
-          <Divider orientation="left">Analysis & Assignment</Divider>
-          <Row gutter={16}>
+          {isEditMode && (
+            <>
+              <Divider orientation="left">Analysis & Assignment</Divider>
+              <Row gutter={16}>
+                <Col span={6}>
+                  <Form.Item name="QualityEngineer" label="Quality Engineer *" rules={[{ required: true, message: 'Please select Quality Engineer' }]}>
+                    <Select options={qeOptions} placeholder="Select QE Engineer" allowClear />
+                  </Form.Item>
+                </Col>
             <Col span={6}>
-              <Form.Item name="QualityEngineer" label="Quality Engineer">
-                <Select options={qeOptions} placeholder="Select QE Engineer" allowClear />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="OwnerDept" label="Owner Dept / 责任部门">
+              <Form.Item name="OwnerDept" label="Owner Dept / 责任部门 *" rules={[{ required: isEditMode, message: 'Please select Owner Dept' }]}>
                 <Select
                   options={ownerDeptOptions}
                   placeholder="Select Department"
@@ -547,7 +581,7 @@ export default function NCNEntry() {
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item name="Owner" label="Owner / 责任人">
+              <Form.Item name="Owner" label="Owner / 责任人 *" rules={[{ required: isEditMode, message: 'Please select Owner' }]}>
                 <Select
                   placeholder="Select Owner"
                   options={ownerOptions}
@@ -560,7 +594,7 @@ export default function NCNEntry() {
 
           <Row gutter={16}>
             <Col span={6}>
-              <Form.Item name="Issue_Type" label="Issue Type / 问题类别">
+              <Form.Item name="Issue_Type" label="Issue Type / 问题类别 *" rules={[{ required: isEditMode, message: 'Please select Issue Type' }]}>
                 <Select
                   options={issueTypeOptions}
                   placeholder="Select Issue Type"
@@ -572,7 +606,7 @@ export default function NCNEntry() {
               </Form.Item>
             </Col>
             <Col span={18}>
-              <Form.Item name="Deep_Annlysis" label="Deep Analysis / 深度分析">
+              <Form.Item name="Deep_Annlysis" label="Deep Analysis / 深度分析 *" rules={[{ required: isEditMode, message: 'Please select Deep Analysis' }]}>
                 <Select
                   options={deepAnalysisOptions}
                   placeholder={form.getFieldValue('Issue_Type') ? 'Select Deep Analysis' : 'Please select Issue Type first'}
@@ -582,43 +616,49 @@ export default function NCNEntry() {
               </Form.Item>
             </Col>
           </Row>
+            </>
+          )}
 
-          <Row gutter={16}>
-            <Col span={6}>
-              <Form.Item name="Tooling_Code" label="Tooling Code">
-                <Input placeholder="Tooling Code" />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="RawMaterialLot" label="Raw Material Lot">
-                <Input placeholder="Raw Material Lot" />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="RMpart" label="RM Part">
-                <Input placeholder="RM Part" />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="LineLeaderEmpId" label="Line Leader">
-                <Input placeholder="Input employee ID" onBlur={handleLineLeaderEmpIdBlur} />
-              </Form.Item>
-              <Typography.Text type={lineLeaderLookupMessage ? 'danger' : undefined}>
-                {lineLeaderLookupMessage || (lineLeaderName ? `员工姓名：${lineLeaderName}` : '员工姓名：')}
-              </Typography.Text>
-              <Form.Item name="LineLeader" hidden>
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
+          {isEditMode && (
+            <>
+              <Row gutter={16}>
+                <Col span={6}>
+                  <Form.Item name="Tooling_Code" label="Tooling Code">
+                    <Input placeholder="Tooling Code" />
+                  </Form.Item>
+                </Col>
+                <Col span={6}>
+                  <Form.Item name="RawMaterialLot" label="Raw Material Lot">
+                    <Input placeholder="Raw Material Lot" />
+                  </Form.Item>
+                </Col>
+                <Col span={6}>
+                  <Form.Item name="RMpart" label="RM Part">
+                    <Input placeholder="RM Part" />
+                  </Form.Item>
+                </Col>
+                <Col span={6}>
+                  <Form.Item name="LineLeaderEmpId" label="Line Leader">
+                    <Input placeholder="Input employee ID" onBlur={handleLineLeaderEmpIdBlur} />
+                  </Form.Item>
+                  <Typography.Text type={lineLeaderLookupMessage ? 'danger' : undefined}>
+                    {lineLeaderLookupMessage || (lineLeaderName ? `员工姓名：${lineLeaderName}` : '员工姓名：')}
+                  </Typography.Text>
+                  <Form.Item name="LineLeader" hidden>
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
 
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Item name="Comments" label="Comments">
-                <TextArea rows={3} placeholder="Additional comments" />
-              </Form.Item>
-            </Col>
-          </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Item name="Comments" label="Comments">
+                    <TextArea rows={3} placeholder="Additional comments" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </>
+          )}
 
           <Form.Item style={{ marginTop: 24 }}>
             <Space>

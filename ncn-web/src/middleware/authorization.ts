@@ -94,6 +94,11 @@ export const canDeleteNCNEntry = (req: Request): boolean => {
   return isAdminRequest(req);
 };
 
+// 只有 Quality Engineer 或 Admin 可以恢复已关闭的 NCN Entry
+export const canReopenNCNEntry = (req: Request, entry: NCN_Entry): boolean => {
+  return isAdminRequest(req) || isQEOwner(req, entry);
+};
+
 export const resolveSafeDownloadPath = (baseUploadPath: string, requestedPath: string): string | null => {
   const uploadRoot = path.resolve(baseUploadPath);
   const requested = path.resolve(requestedPath);

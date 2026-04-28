@@ -79,6 +79,12 @@ export const closeNCNEntry = async (rowid: number): Promise<IApiResponse> => {
   return response.data;
 };
 
+// Reopen NCN Entry (only QE or Admin can do this)
+export const reopenNCNEntry = async (rowid: number): Promise<IApiResponse> => {
+  const response = await api.put(`/entry/${rowid}/reopen`);
+  return response.data;
+};
+
 // Delete NCN Entry (Admin only)
 export const deleteNCNEntry = async (rowid: number): Promise<IApiResponse> => {
   const response = await api.delete(`/entry/${rowid}`);

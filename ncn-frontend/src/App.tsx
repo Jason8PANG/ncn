@@ -13,32 +13,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { useEffect } from 'react';
 import { windowsLogin } from './services/auth';
 
-const COOKIE_NAME = 'ncn_token';
-
-function parseJwtPayload(token: string): any | null {
-  try {
-    const base64 = token.split('.')[1];
-    const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
-
-function getUserFromCookie(): { lanId: string; displayName: string; email: string; department: string; isAdmin: boolean } | null {
-  const match = document.cookie.match(new RegExp('(^| )' + COOKIE_NAME + '=([^;]+)'));
-  if (!match) return null;
-  const payload = parseJwtPayload(decodeURIComponent(match[2]));
-  if (!payload || !payload.lanId) return null;
-  return {
-    lanId: payload.lanId,
-    displayName: payload.displayName || payload.lanId,
-    email: payload.email || '',
-    department: payload.department || '',
-    isAdmin: payload.isAdmin || false
-  };
-}
-
 function AuthInitializer({ children }: { children: React.ReactNode }) {
   const setAuthState = useSetRecoilState(authState);
   const initialized = useRecoilValue(authInitializedState);
@@ -47,39 +21,30 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (initialized) return;
 
-    const isLoginPage = window.location.pathname === '/login';
-
-    // 登录页：只检查 Cookie，不触发 windowsLogin
-    if (isLoginPage) {
-      const user = getUserFromCookie();
-      if (user) {
-        setAuthState({ isAuthenticated: true, user, loading: false });
-      } else {
+    // httpOnly Cookie 无法通过 document.cookie 读取，必须调用后端接口验证
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.authenticated && data.user) {
+          // Cookie 有效，直接恢复登录状态，无需再次输入密码
+          setAuthState({ isAuthenticated: true, user: data.user, loading: false });
+          setInitialized(true);
+        } else {
+          // Cookie 不存在或已过期，尝试 Windows SSO 自动登录
+          return windowsLogin().then((result) => {
+            if (result.success && result.user) {
+              setAuthState({ isAuthenticated: true, user: result.user, loading: false });
+            } else {
+              setAuthState({ isAuthenticated: false, user: null, loading: false });
+            }
+            setInitialized(true);
+          });
+        }
+      })
+      .catch(() => {
         setAuthState({ isAuthenticated: false, user: null, loading: false });
-      }
-      setInitialized(true);
-      return;
-    }
-
-    // 其他页面：先读 Cookie，Cookie 无效才尝试 windowsLogin
-    const user = getUserFromCookie();
-    if (user) {
-      setAuthState({ isAuthenticated: true, user, loading: false });
-      setInitialized(true);
-      return;
-    }
-
-    windowsLogin().then((result) => {
-      if (result.success && result.user) {
-        setAuthState({ isAuthenticated: true, user: result.user, loading: false });
-      } else {
-        setAuthState({ isAuthenticated: false, user: null, loading: false });
-      }
-      setInitialized(true);
-    }).catch(() => {
-      setAuthState({ isAuthenticated: false, user: null, loading: false });
-      setInitialized(true);
-    });
+        setInitialized(true);
+      });
   }, [initialized, setAuthState, setInitialized]);
 
   return <>{children}</>;
