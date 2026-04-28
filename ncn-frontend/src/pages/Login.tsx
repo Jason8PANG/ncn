@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, message } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, message, Divider } from 'antd';
+import { UserOutlined, LockOutlined, WindowsOutlined } from '@ant-design/icons';
 import { useSetRecoilState } from 'recoil';
 import { authState } from '../state/auth';
-import { login } from '../services/auth';
+import { login, windowsLogin } from '../services/auth';
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
+  const [windowsLoading, setWindowsLoading] = useState(false);
   const navigate = useNavigate();
   const setAuthState = useSetRecoilState(authState);
 
@@ -33,6 +34,28 @@ export default function Login() {
     }
   };
 
+  const handleWindowsLogin = async () => {
+    setWindowsLoading(true);
+    try {
+      const result = await windowsLogin();
+      if (result.success && result.user) {
+        setAuthState({
+          isAuthenticated: true,
+          user: result.user,
+          loading: false
+        });
+        message.success(`Welcome, ${result.user.displayName}`);
+        navigate('/');
+      } else {
+        message.info('Windows login not available. Please use your LAN ID and password.');
+      }
+    } catch {
+      message.error('Windows login failed. Please use your LAN ID and password.');
+    } finally {
+      setWindowsLoading(false);
+    }
+  };
+
   return (
     <div style={{
       display: 'flex',
@@ -48,6 +71,29 @@ export default function Login() {
           </h1>
           <p style={{ color: '#666' }}>Non-Conformance Notice Management</p>
         </div>
+
+        <Button
+          icon={<WindowsOutlined />}
+          size="large"
+          block
+          onClick={handleWindowsLogin}
+          loading={windowsLoading}
+          style={{
+            marginBottom: 16,
+            background: '#0078d4',
+            borderColor: '#0078d4',
+            color: '#fff',
+            fontWeight: 500,
+            height: 44
+          }}
+        >
+          Sign in with Windows
+        </Button>
+
+        <Divider style={{ margin: '20px 0' }}>
+          <span style={{ color: '#999', fontSize: 12 }}>OR</span>
+        </Divider>
+
         <Form name="login" onFinish={onFinish} size="large">
           <Form.Item
             name="username"
@@ -61,7 +107,7 @@ export default function Login() {
           >
             <Input.Password prefix={<LockOutlined />} placeholder="Password" />
           </Form.Item>
-          <Form.Item>
+          <Form.Item style={{ marginBottom: 0 }}>
             <Button type="primary" htmlType="submit" loading={loading} block size="large">
               Login
             </Button>
