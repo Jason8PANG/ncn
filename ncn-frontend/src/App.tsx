@@ -21,30 +21,43 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (initialized) return;
 
-    // httpOnly Cookie 无法通过 document.cookie 读取，必须调用后端接口验证
+    let cancelled = false;
+
     fetch('/api/auth/me', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.authenticated && data.user) {
-          // Cookie 有效，直接恢复登录状态，无需再次输入密码
+      .then(async (res) => {
+        // 非 200-299 状态码也视为未认证，不再重试
+        if (!res.ok) {
+          return { authenticated: false };
+        }
+        try {
+          return await res.json();
+        } catch {
+          // 响应体解析失败，视为未认证
+          return { authenticated: false };
+        }
+      })
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.authenticated && data?.user) {
           setAuthState({ isAuthenticated: true, user: data.user, loading: false });
           setInitialized(true);
         } else {
-          // Cookie 不存在或已过期，尝试 Windows SSO 自动登录
-          return windowsLogin().then((result) => {
-            if (result.success && result.user) {
-              setAuthState({ isAuthenticated: true, user: result.user, loading: false });
-            } else {
-              setAuthState({ isAuthenticated: false, user: null, loading: false });
-            }
-            setInitialized(true);
-          });
+          // Cookie 不存在或无效，等待页面跳转到登录页
+          setAuthState({ isAuthenticated: false, user: null, loading: false });
+          setInitialized(true);
         }
       })
       .catch(() => {
-        setAuthState({ isAuthenticated: false, user: null, loading: false });
-        setInitialized(true);
+        // 网络错误也视为未认证，不再重试
+        if (!cancelled) {
+          setAuthState({ isAuthenticated: false, user: null, loading: false });
+          setInitialized(true);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [initialized, setAuthState, setInitialized]);
 
   return <>{children}</>;
