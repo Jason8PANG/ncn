@@ -228,7 +228,7 @@ export default function NCNEntry() {
           loadOwnerOptions(data.OwnerDept).then(() => {
             // 回填 Owner（编辑模式下，Owner 值需要与新的选项格式匹配）
             if (data.Owner) {
-              const ownerOpt = ownerOptions.find(o => o.label.startsWith(data.Owner));
+              const ownerOpt = ownerOptions.find(o => o.label.startsWith(data.Owner ?? ''));
               if (ownerOpt) {
                 form.setFieldsValue({ Owner: ownerOpt.value });
               }
