@@ -40,8 +40,11 @@ app.use(cors({
     const allowedOrigins = config.corsOrigins || ['http://localhost:3001'];
     if (
       allowedOrigins.indexOf(origin) !== -1 ||
+      !origin || // Allow non-browser requests (curl, server-to-server)
       origin.startsWith('http://localhost:') ||
-      origin.startsWith('http://suzvweb02')
+      origin.startsWith('http://127.0.0.1:') ||
+      origin.startsWith('http://suzvweb02') ||
+      origin.startsWith('http://ncnapp')
     ) {
       callback(null, true);
     } else {
