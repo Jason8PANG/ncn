@@ -31,8 +31,10 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_FROM=${SMTP_FROM}
       - NCN_APP_URL=${NCN_APP_URL}
+      - UPLOAD_PATH=/app/uploads
     volumes:
-      - ncn-uploads:/app/uploads
+      # 宿主机路径映射，程序更新时上传文件不丢失
+      - ./uploads:/app/uploads
     networks:
       - public-net
     healthcheck:
@@ -45,7 +47,3 @@ services:
 networks:
   public-net:
     external: true
-
-volumes:
-  ncn-uploads:
-    driver: local
