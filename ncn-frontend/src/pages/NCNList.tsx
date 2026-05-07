@@ -20,6 +20,8 @@ export default function NCNList() {
   const [data, setData] = useState<INCN_Entry[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [form] = Form.useForm();
   const { user } = useRecoilValue(authState);
   const navigate = useNavigate();
@@ -426,10 +428,15 @@ export default function NCNList() {
           loading={loading}
           rowKey="ROWID"
           pagination={{
+            current: currentPage,
             total,
-            pageSize: 50,
+            pageSize,
             showSizeChanger: true,
-            showTotal: (t) => `Total ${t} items`
+            showTotal: (t) => `Total ${t} items`,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            }
           }}
           scroll={{ x: 1100 }}
           size="small"
