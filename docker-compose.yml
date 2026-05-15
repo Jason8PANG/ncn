@@ -32,6 +32,7 @@ services:
       - SMTP_FROM=${SMTP_FROM}
       - NCN_APP_URL=${NCN_APP_URL}
       - UPLOAD_PATH=/app/uploads
+      - TZ=Asia/Shanghai
     volumes:
       # 宿主机路径映射，程序更新时上传文件不丢失
       - ./uploads:/app/uploads
