@@ -12,6 +12,9 @@ build/
 .env.local
 .env.*.local
 *.env
+*.env.bak
+.env.*
+!*.env.example
 
 # Uploads
 uploads/

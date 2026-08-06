@@ -434,7 +434,7 @@ export default function NCNEntry() {
               type="primary"
               ghost
               icon={<FileAddOutlined />}
-              onClick={() => navigate(`/issue-log/${id}`)}
+              onClick={() => navigate(`/issue-log/${id}?from=entry`)}
             >
               Log Issue
             </Button>
@@ -451,6 +451,7 @@ export default function NCNEntry() {
           layout="vertical"
           onFinish={onFinish}
           size="large"
+          initialValues={{ Finder_Date: dayjs() }}
         >
           <Divider orientation="left">Basic Information</Divider>
           <Row gutter={16}>

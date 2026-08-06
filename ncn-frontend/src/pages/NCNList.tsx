@@ -157,7 +157,7 @@ export default function NCNList() {
               type="link"
               size="small"
               icon={<EyeOutlined />}
-              onClick={() => navigate(`/issue-log/${record.ROWID}`)}
+              onClick={() => navigate(`/issue-log/${record.ROWID}?from=list`)}
             />
             {menuItems.length > 0 && (
               <Dropdown

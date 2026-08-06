@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Table, Card, Button, Space, Tag, Form, Input, Select, DatePicker, message, Typography, Divider, Modal } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PlusOutlined, EditOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, CheckOutlined, DeleteOutlined, RollbackOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getActions, createAction, updateAction, closeAction, deleteAction } from '../services/action';
 import { getOwnerOptions, getNCNEntry } from '../services/entry';
@@ -13,6 +13,9 @@ const { TextArea } = Input;
 
 export default function IssueLog() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const from = searchParams.get('from'); // 'entry' = 来自 NCN 编辑页, 'list' = 来自 NCN List 页
   const [currentActions, setCurrentActions] = useState<INCN_Action_Detail[]>([]);
   const [futureActions, setFutureActions] = useState<INCN_Action_Detail[]>([]);
   const [loading, setLoading] = useState(false);
@@ -321,8 +324,19 @@ export default function IssueLog() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={3}>Issue Log - NCN {id}</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+        <Title level={3} style={{ marginBottom: 0 }}>Issue Log - NCN {id}</Title>
+        <Space>
+          {from === 'entry' ? (
+            <Button icon={<RollbackOutlined />} onClick={() => navigate(`/ncn-entry/${id}`)}>
+              Back to NCN Entry
+            </Button>
+          ) : (
+            <Button icon={<RollbackOutlined />} onClick={() => navigate('/ncn-list')}>
+              Back to NCN List
+            </Button>
+          )}
+        </Space>
       </div>
 
       <Card title="Current Actions (Temporary)" style={{ marginBottom: 16 }}>

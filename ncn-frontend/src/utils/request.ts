@@ -22,7 +22,10 @@ export const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const url = error.config?.url || '';
+    // 登录接口自身的 401（如密码错误）不跳转，交由页面显示错误提示
+    const isLoginRequest = url.includes('/auth/login') || url.includes('/auth/windows-login');
+    if (error.response?.status === 401 && !isLoginRequest) {
       window.location.href = '/login';
     }
     return Promise.reject(error);
