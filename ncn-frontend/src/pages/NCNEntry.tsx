@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Form, Input, Select, Button, Card, Row, Col, DatePicker, message, Typography, Divider, Space } from 'antd';
-import { SaveOutlined, RollbackOutlined } from '@ant-design/icons';
+import { SaveOutlined, RollbackOutlined, FileAddOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import { useRecoilValue } from 'recoil';
 import { authState } from '../state/auth';
@@ -428,9 +428,21 @@ export default function NCNEntry() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={3}>{id ? 'Edit NCN' : 'New NCN Entry'}</Title>
-        <Button icon={<RollbackOutlined />} onClick={() => navigate('/ncn-list')}>
-          Back to List
-        </Button>
+        <Space>
+          {id && (
+            <Button
+              type="primary"
+              ghost
+              icon={<FileAddOutlined />}
+              onClick={() => navigate(`/issue-log/${id}`)}
+            >
+              Log Issue
+            </Button>
+          )}
+          <Button icon={<RollbackOutlined />} onClick={() => navigate('/ncn-list')}>
+            Back to List
+          </Button>
+        </Space>
       </div>
 
       <Card>
