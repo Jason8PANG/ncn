@@ -442,6 +442,12 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
 
     logger.info(`[CREATE] NCN Entry created successfully: ${entryData.SerialNo} by ${lanId}`);
 
+    // 构造邮件链接用的 appUrl（防止 .env 里 NCN_APP_URL 配成 / 或空）
+    const newRowId = Number(result);
+    const effectiveAppUrl = (config.appUrl && /^https?:\/\//.test(config.appUrl))
+      ? config.appUrl
+      : `${req.protocol}://${req.get('host')}`;
+
     // 准备 NCN 详情数据用于邮件
     const ncnEmailData = {
       ncnType: entryData.NCN_Type,
@@ -459,8 +465,9 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
         [entryData.ME_EngineerEmail],
         [],
         entryData.SerialNo,
-        config.appUrl,
-        ncnEmailData
+        effectiveAppUrl,
+        ncnEmailData,
+        newRowId
       ).catch(err => logger.error('[CREATE] Failed to send ME email:', err));
       logger.info(`[CREATE] Email queued for ME Engineer: ${entryData.ME_EngineerEmail}`);
     } else if (entryData.ME_Engineer) {
@@ -471,8 +478,9 @@ router.post('/', isAuthenticated, async (req: Request, res: Response) => {
           [meEmail],
           [],
           entryData.SerialNo,
-          config.appUrl,
-          ncnEmailData
+          effectiveAppUrl,
+          ncnEmailData,
+          newRowId
         ).catch(err => logger.error('[CREATE] Failed to send ME email:', err));
         logger.info(`[CREATE] Email queued for ME Engineer (from DB): ${meEmail}`);
       } else {
@@ -688,12 +696,16 @@ router.put('/:rowid', isAuthenticated, async (req: Request, res: Response) => {
 
     // 发送通知邮件（fire-and-forget 模式，不阻塞响应）
     if (emailRecipients.length > 0) {
+      const effectiveAppUrl = (config.appUrl && /^https?:\/\//.test(config.appUrl))
+        ? config.appUrl
+        : `${req.protocol}://${req.get('host')}`;
       // 不等待，直接发送，错误由 .catch 处理
       sendNCNUpdateNotification(
         emailRecipients,
         entry.SerialNo,
-        config.appUrl,
-        ncnEmailData
+        effectiveAppUrl,
+        ncnEmailData,
+        entry.ROWID
       ).catch(err => logger.error('[UPDATE] Failed to send update notification email:', err));
       logger.info(`[UPDATE] Update notification email queued for: ${emailRecipients.join(', ')}`);
     }

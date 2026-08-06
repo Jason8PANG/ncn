@@ -63,9 +63,12 @@ export const sendNewNCNNotification = async (
     defectDescription?: string;
     finder?: string;
     finderDept?: string;
-  }
+  },
+  rowId?: number
 ) => {
-  const ncnDetailUrl = `${appUrl}/ncn-entry`;
+  const ncnDetailUrl = rowId
+    ? `${appUrl}/ncn-entry/${rowId}`
+    : `${appUrl}/ncn-entry`;
   const mailBody = `
     <div style="font-family: Calibri; max-width: 600px;">
       <h2 style="color: #D64309;">New NCN Created</h2>
@@ -237,9 +240,12 @@ export const sendNCNUpdateNotification = async (
     owner?: string;
     ownerDept?: string;
     updatedBy?: string;
-  }
+  },
+  rowId?: number
 ) => {
-  const ncnDetailUrl = `${appUrl}/ncn-entry`;
+  const ncnDetailUrl = rowId
+    ? `${appUrl}/ncn-entry/${rowId}`
+    : `${appUrl}/ncn-entry`;
   const mailBody = `
     <div style="font-family: Calibri; max-width: 600px;">
       <h2 style="color: #D64309;">NCN Updated - Action Required</h2>
