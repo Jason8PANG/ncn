@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Form, Input, Select, Button, Card, Row, Col, DatePicker, message, Typography, Divider, Space, Upload, Modal, Tag } from 'antd';
+import { Form, Input, Select, Button, Card, Row, Col, DatePicker, message, Typography, Divider, Space, Upload, Modal, Tag, Collapse } from 'antd';
 import { SaveOutlined, RollbackOutlined, FileAddOutlined, UploadOutlined, DownloadOutlined, PaperClipOutlined, AudioOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import dayjs, { Dayjs } from 'dayjs';
@@ -652,39 +652,54 @@ export default function NCNEntry() {
           initialValues={{ Finder_Date: dayjs() }}
         >
           {!isEditMode && (
-            <Card
-              size="small"
-              title="AI Assistant"
-              style={{ marginBottom: 16, background: '#f7f9ff' }}
-              extra={<Typography.Text type="secondary" style={{ fontSize: 12 }}>Describe the defect, AI will fill the form</Typography.Text>}
-            >
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input.TextArea
-                    rows={2}
-                    value={aiText}
-                    onChange={(e) => setAiText(e.target.value)}
-                    placeholder="Type or speak the defect description, e.g. '线束外观不良，端子压接偏移，数量5件，发生在HVLM事业部'"
-                  />
-                  <Button
-                    type={listening ? 'primary' : 'default'}
-                    icon={<AudioOutlined />}
-                    onClick={startVoiceInput}
-                    style={{ width: 90, height: 'auto' }}
-                  >
-                    {listening ? 'Stop' : 'Mic'}
-                  </Button>
-                </Space.Compact>
-                <Space>
-                  <Button type="primary" icon={<ThunderboltOutlined />} loading={aiLoading} onClick={handleAiFill}>
-                    AI Auto-Fill
-                  </Button>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    ME / QE / Issue Type / Deep Analysis recommended from historical NCN data.
-                  </Typography.Text>
-                </Space>
-              </Space>
-            </Card>
+            <Collapse
+              ghost
+              style={{ marginBottom: 16 }}
+              items={[
+                {
+                  key: 'ai',
+                  label: (
+                    <Space>
+                      <ThunderboltOutlined style={{ color: '#1677ff' }} />
+                      <Typography.Text strong>AI Assistant</Typography.Text>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        (click to open: describe the defect, AI fills the form & assigns ME from history)
+                      </Typography.Text>
+                    </Space>
+                  ),
+                  children: (
+                    <Card size="small" style={{ background: '#f7f9ff' }}>
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        <Space.Compact style={{ width: '100%' }}>
+                          <Input.TextArea
+                            rows={2}
+                            value={aiText}
+                            onChange={(e) => setAiText(e.target.value)}
+                            placeholder="Type or speak the defect description, e.g. '线束外观不良，端子压接偏移，数量5件，发生在HVLM事业部'"
+                          />
+                          <Button
+                            type={listening ? 'primary' : 'default'}
+                            icon={<AudioOutlined />}
+                            onClick={startVoiceInput}
+                            style={{ width: 90, height: 'auto' }}
+                          >
+                            {listening ? 'Stop' : 'Mic'}
+                          </Button>
+                        </Space.Compact>
+                        <Space>
+                          <Button type="primary" icon={<ThunderboltOutlined />} loading={aiLoading} onClick={handleAiFill}>
+                            AI Auto-Fill
+                          </Button>
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            ME / QE / Issue Type / Deep Analysis recommended from historical NCN data.
+                          </Typography.Text>
+                        </Space>
+                      </Space>
+                    </Card>
+                  )
+                }
+              ]}
+            />
           )}
 
           <Divider orientation="left">Basic Information</Divider>
