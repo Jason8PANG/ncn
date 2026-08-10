@@ -2,36 +2,37 @@ import { DataTypes, Model, Optional } from 'sequelize';
 import { sequelize } from '.';
 
 export interface Code_Table_Attributes {
-  Code: string;
+  ID: number;
   Code_Category: string;
+  Code: string;
   Code_Description: string;
-  remark: string;
   Status: string;
-  UpdateBy: string;
-  UpdateDate: Date | string;
+  Note: string | null;
+  remark: string | null;
 }
 
-export interface Code_Table_Creation_Attributes extends Optional<Code_Table_Attributes, 'Code'> {}
+export interface Code_Table_Creation_Attributes extends Optional<Code_Table_Attributes, 'ID'> {}
 
-export class Code_Table extends Model<Code_Table_Attributes, Code_Table_Creation_Attributes> implements Code_Table_Attributes {
-  public Code!: string;
+export class Code_Table extends Model<Code_Table_Attributes, Code_Table_Creation_Attributes>
+  implements Code_Table_Attributes {
+  public ID!: number;
   public Code_Category!: string;
+  public Code!: string;
   public Code_Description!: string;
-  public remark!: string;
   public Status!: string;
-  public UpdateBy!: string;
-  public UpdateDate!: Date | string;
+  public Note!: string | null;
+  public remark!: string | null;
 }
 
 Code_Table.init(
   {
-    Code: { type: DataTypes.STRING(100), primaryKey: true },
-    Code_Category: { type: DataTypes.STRING(100), allowNull: true },
-    Code_Description: { type: DataTypes.STRING(200), allowNull: true },
-    remark: { type: DataTypes.STRING(500), allowNull: true },
-    Status: { type: DataTypes.STRING(50), allowNull: true },
-    UpdateBy: { type: DataTypes.STRING(100), allowNull: true },
-    UpdateDate: { type: DataTypes.DATE, allowNull: true }
+    ID: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    Code_Category: { type: DataTypes.STRING(50), allowNull: true },
+    Code: { type: DataTypes.STRING(50), allowNull: true },
+    Code_Description: { type: DataTypes.STRING(500), allowNull: true },
+    Status: { type: DataTypes.STRING(10), allowNull: false },
+    Note: { type: DataTypes.STRING(200), allowNull: true },
+    remark: { type: DataTypes.STRING(200), allowNull: true }
   },
   {
     sequelize,

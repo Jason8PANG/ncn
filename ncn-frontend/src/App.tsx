@@ -9,6 +9,7 @@ import NCNKanban from './pages/NCNKanban';
 import NCNEntry from './pages/NCNEntry';
 import IssueLog from './pages/IssueLog';
 import LdapTest from './pages/LdapTest';
+import CodeTable from './pages/CodeTable';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useEffect } from 'react';
 import { windowsLogin } from './services/auth';
@@ -85,6 +86,7 @@ function AppContent() {
         <Route path="ncn-entry" element={<NCNEntry />} />
         <Route path="ncn-entry/:id" element={<NCNEntry />} />
         <Route path="issue-log/:id" element={<IssueLog />} />
+        <Route path="code-table" element={<CodeTable />} />
       </Route>
     </Routes>
   );

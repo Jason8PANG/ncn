@@ -9,7 +9,8 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  DashboardOutlined
+  DashboardOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { authState } from '../state/auth';
@@ -43,6 +44,15 @@ export default function MainLayout() {
     },
     // LDAP 测试页面已从菜单移除，代码保留，可通过 /ldap-test 直接访问
   ];
+
+  // 参数维护（Code Table）仅 Admin 可见
+  if (user?.isAdmin) {
+    menuItems.push({
+      key: '/code-table',
+      icon: <SettingOutlined />,
+      label: <Link to="/code-table">Code Table</Link>
+    });
+  }
 
   const userMenuItems: MenuProps['items'] = [
     {

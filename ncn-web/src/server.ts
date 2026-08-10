@@ -24,6 +24,7 @@ import actionRoutes from './routes/action.routes';
 import issueLogRoutes from './routes/issuelog.routes';
 import staffRoutes from './routes/staff.routes';
 import uploadRoutes from './routes/upload.routes';
+import codetableRoutes from './routes/codetable.routes';
 
 const app: Application = express();
 
@@ -85,6 +86,7 @@ app.use('/api/action', actionRoutes);
 app.use('/api/issuelog', issueLogRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/codetable', codetableRoutes);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
