@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Form, Input, Select, Button, Card, Row, Col, DatePicker, message, Typography, Divider, Space, Upload } from 'antd';
-import { SaveOutlined, RollbackOutlined, FileAddOutlined, UploadOutlined, DownloadOutlined, PaperClipOutlined } from '@ant-design/icons';
+import { Form, Input, Select, Button, Card, Row, Col, DatePicker, message, Typography, Divider, Space, Upload, Modal, Tag } from 'antd';
+import { SaveOutlined, RollbackOutlined, FileAddOutlined, UploadOutlined, DownloadOutlined, PaperClipOutlined, AudioOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import dayjs, { Dayjs } from 'dayjs';
 import { useRecoilValue } from 'recoil';
@@ -21,6 +21,7 @@ import {
   getDeepAnalysisOptions
 } from '../services/entry';
 import { uploadFile, downloadFile } from '../services/upload';
+import { aiFillNew, aiSuggestEdit, type IAiSuggestEditResponse } from '../services/ai';
 import type { INCN_Entry } from '../types';
 
 const { Title } = Typography;
@@ -58,6 +59,12 @@ export default function NCNEntry() {
   // 附件：传统共享路径方案（文件存 \\suzvfile02\TaskManager\NCN_{SerialNo}.{ext}，路径存 FilePath 字段）
   const [existingFilePath, setExistingFilePath] = useState('');
   const [uploadFileList, setUploadFileList] = useState<UploadFile[]>([]);
+  // AI 助手
+  const [aiText, setAiText] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [editSuggestion, setEditSuggestion] = useState<IAiSuggestEditResponse['data'] | null>(null);
+  const [editSuggestionVisible, setEditSuggestionVisible] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -272,6 +279,121 @@ export default function NCNEntry() {
       }
     }
     return failed;
+  };
+
+  // ─── AI 助手 ────────────────────────────────────────────────────────────────
+  const startVoiceInput = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      message.warning('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+    const recognition = new SR();
+    recognition.lang = 'zh-CN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setAiText((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    };
+    recognition.onerror = (event: any) => {
+      message.error(`Speech recognition error: ${event?.error || 'unknown'}`);
+      setListening(false);
+    };
+    recognition.onend = () => setListening(false);
+    recognition.start();
+    setListening(true);
+  };
+
+  // 新建模式：AI 自动填写（历史统计推荐 + 可选 LLM 解析文字）
+  const handleAiFill = async () => {
+    setAiLoading(true);
+    try {
+      const resp = await aiFillNew({
+        text: aiText,
+        sbuDes: form.getFieldValue('SBU_Des')
+      });
+      if (resp.success && resp.data) {
+        const { suggestions, parsedFields } = resp.data;
+        const fields: Record<string, any> = {};
+
+        // LLM 解析的字段（优先，仅填非空）
+        if (parsedFields) {
+          for (const [k, v] of Object.entries(parsedFields)) {
+            if (v) fields[k] = v;
+          }
+        }
+
+        // 统计推荐（仅填空字段）
+        if (!fields.ME_Engineer && suggestions.meEngineer) fields.ME_Engineer = suggestions.meEngineer;
+        if (!fields.QualityEngineer && suggestions.qualityEngineer) fields.QualityEngineer = suggestions.qualityEngineer;
+        if (!fields.Issue_Type && suggestions.issueType) fields.Issue_Type = suggestions.issueType;
+        if (!fields.Deep_Annlysis && suggestions.deepAnalysis) fields.Deep_Annlysis = suggestions.deepAnalysis;
+
+        form.setFieldsValue(fields);
+
+        // 若 SBU 被填入且选项未加载，加载 SBU 描述选项
+        if (fields.SBU) {
+          loadSBUDescriptionOptions(fields.SBU);
+        }
+
+        const applied: string[] = [];
+        if (fields.ME_Engineer) applied.push(`ME: ${fields.ME_Engineer}`);
+        if (fields.QualityEngineer) applied.push(`QE: ${fields.QualityEngineer}`);
+        if (fields.Issue_Type) applied.push(`Issue: ${fields.Issue_Type}`);
+        if (fields.Deep_Annlysis) applied.push(`Deep: ${fields.Deep_Annlysis}`);
+        message.success(applied.length > 0 ? `AI filled: ${applied.join(', ')}` : 'AI filled (description only)');
+      } else {
+        message.error(resp.error || 'AI assistant failed');
+      }
+    } catch (error: any) {
+      message.error(error?.response?.data?.error || 'AI assistant failed');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // 编辑模式：AI 一键填写推荐（QE / Issue_Type / Deep_Analysis）
+  const handleAiSuggestEdit = async () => {
+    setAiLoading(true);
+    try {
+      const resp = await aiSuggestEdit({
+        sbuDes: form.getFieldValue('SBU_Des'),
+        partId: form.getFieldValue('Part_ID'),
+        defectDescription: form.getFieldValue('Defect_Description'),
+        issueType: form.getFieldValue('Issue_Type')
+      });
+      if (resp.success && resp.data) {
+        setEditSuggestion(resp.data);
+        setEditSuggestionVisible(true);
+      } else {
+        message.error(resp.error || 'AI assistant failed');
+      }
+    } catch (error: any) {
+      message.error(error?.response?.data?.error || 'AI assistant failed');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // 应用编辑推荐
+  const applyEditSuggestion = () => {
+    if (!editSuggestion) return;
+    const target = editSuggestion.llm &&
+      (editSuggestion.llm.QualityEngineer || editSuggestion.llm.Issue_Type || editSuggestion.llm.Deep_Annlysis)
+      ? editSuggestion.llm
+      : editSuggestion.stats as any;
+
+    const fields: Record<string, any> = {};
+    const qe = target.QualityEngineer ?? target.qualityEngineer;
+    const issue = target.Issue_Type ?? target.issueType;
+    const deep = target.Deep_Annlysis ?? target.deepAnalysis;
+    if (qe) fields.QualityEngineer = qe;
+    if (issue) fields.Issue_Type = issue;
+    if (deep) fields.Deep_Annlysis = deep;
+    form.setFieldsValue(fields);
+    setEditSuggestionVisible(false);
+    message.success('AI suggestions applied');
   };
 
   // 从共享路径提取文件名（如 \\suzvfile02\TaskManager\NCN_NCN2608011.jpg → NCN_NCN2608011.jpg）
@@ -498,6 +620,17 @@ export default function NCNEntry() {
             <Button
               type="primary"
               ghost
+              icon={<ThunderboltOutlined />}
+              loading={aiLoading}
+              onClick={handleAiSuggestEdit}
+            >
+              AI Fill
+            </Button>
+          )}
+          {id && (
+            <Button
+              type="primary"
+              ghost
               icon={<FileAddOutlined />}
               onClick={() => navigate(`/issue-log/${id}?from=entry`)}
             >
@@ -518,6 +651,42 @@ export default function NCNEntry() {
           size="large"
           initialValues={{ Finder_Date: dayjs() }}
         >
+          {!isEditMode && (
+            <Card
+              size="small"
+              title="AI Assistant"
+              style={{ marginBottom: 16, background: '#f7f9ff' }}
+              extra={<Typography.Text type="secondary" style={{ fontSize: 12 }}>Describe the defect, AI will fill the form</Typography.Text>}
+            >
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space.Compact style={{ width: '100%' }}>
+                  <Input.TextArea
+                    rows={2}
+                    value={aiText}
+                    onChange={(e) => setAiText(e.target.value)}
+                    placeholder="Type or speak the defect description, e.g. '线束外观不良，端子压接偏移，数量5件，发生在HVLM事业部'"
+                  />
+                  <Button
+                    type={listening ? 'primary' : 'default'}
+                    icon={<AudioOutlined />}
+                    onClick={startVoiceInput}
+                    style={{ width: 90, height: 'auto' }}
+                  >
+                    {listening ? 'Stop' : 'Mic'}
+                  </Button>
+                </Space.Compact>
+                <Space>
+                  <Button type="primary" icon={<ThunderboltOutlined />} loading={aiLoading} onClick={handleAiFill}>
+                    AI Auto-Fill
+                  </Button>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    ME / QE / Issue Type / Deep Analysis recommended from historical NCN data.
+                  </Typography.Text>
+                </Space>
+              </Space>
+            </Card>
+          )}
+
           <Divider orientation="left">Basic Information</Divider>
           <Row gutter={16}>
             <Col span={6}>
@@ -563,7 +732,22 @@ export default function NCNEntry() {
             </Col>
             <Col span={6}>
               <Form.Item name="SBU_Des" label="SBU Description" rules={[{ required: true }]}>
-                <Select options={sbuDesOptions} placeholder="Select SBU Description" />
+                <Select
+                  options={sbuDesOptions}
+                  placeholder="Select SBU Description"
+                  onChange={(value) => {
+                    // 自动分配 ME Engineer：按该 SBU_Des 的历史记录推荐（仅当 ME 尚未选择）
+                    if (value && !form.getFieldValue('ME_Engineer')) {
+                      aiFillNew({ sbuDes: value }).then((resp) => {
+                        const me = resp.data?.suggestions?.meEngineer;
+                        if (me && !form.getFieldValue('ME_Engineer')) {
+                          form.setFieldsValue({ ME_Engineer: me });
+                          message.info(`ME Engineer auto-assigned: ${me}`);
+                        }
+                      }).catch(() => {});
+                    }
+                  }}
+                />
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -786,6 +970,54 @@ export default function NCNEntry() {
           </Form.Item>
         </Form>
       </Card>
+
+      <Modal
+        title="AI Suggestions (based on historical NCN data)"
+        open={editSuggestionVisible}
+        onCancel={() => setEditSuggestionVisible(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setEditSuggestionVisible(false)}>Cancel</Button>,
+          <Button key="apply" type="primary" icon={<ThunderboltOutlined />} onClick={applyEditSuggestion}>
+            Apply Suggestions
+          </Button>
+        ]}
+      >
+        {editSuggestion && (
+          <div>
+            {editSuggestion.llm && (
+              <div style={{ marginBottom: 12 }}>
+                <Typography.Text strong>AI Analysis: </Typography.Text>
+                <div>
+                  <Tag color="blue">QE: {editSuggestion.llm.QualityEngineer || '-'}</Tag>
+                  <Tag color="purple">Issue Type: {editSuggestion.llm.Issue_Type || '-'}</Tag>
+                  <Tag color="cyan">Deep Analysis: {editSuggestion.llm.Deep_Annlysis || '-'}</Tag>
+                </div>
+              </div>
+            )}
+            <div style={{ marginBottom: 12 }}>
+              <Typography.Text strong>Historical Stats: </Typography.Text>
+              <div>
+                <Tag>QE: {editSuggestion.stats?.qualityEngineer || '-'}</Tag>
+                <Tag>Issue Type: {editSuggestion.stats?.issueType || '-'}</Tag>
+                <Tag>Deep Analysis: {editSuggestion.stats?.deepAnalysis || '-'}</Tag>
+              </div>
+            </div>
+            <Divider style={{ margin: '12px 0' }} />
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {editSuggestion.llmEnabled
+                ? 'AI Analysis (LLM) takes priority when applying. '
+                : 'LLM is not configured (add LLM_API_KEY in .env to enable AI analysis). '
+              }
+              Historical distributions for this SBU:
+            </Typography.Text>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
+              <div>Issue Types: {editSuggestion.distributions?.issueTypes.join(', ') || '-'}</div>
+              <div>Deep Analysis: {editSuggestion.distributions?.deepAnalysis.join(', ') || '-'}</div>
+              <div>QE: {editSuggestion.distributions?.qes.join(', ') || '-'}</div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

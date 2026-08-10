@@ -44,6 +44,14 @@ export const config = {
   appUrl: process.env.NCN_APP_URL || 'http://localhost:3000',
   corsOrigins: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3001'],
 
+  // AI 助手（可选）：不配 LLM_API_KEY 时 AI 功能降级为纯历史统计
+  llm: {
+    apiKey: process.env.LLM_API_KEY || '',
+    baseUrl: process.env.LLM_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: process.env.LLM_MODEL || 'qwen-plus',
+    timeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || '30000', 10)
+  },
+
   jwt: {
     secret: process.env.JWT_SECRET || 'ncn-jwt-secret-change-in-production',
     expiresIn: process.env.JWT_EXPIRES_IN || '30d', // Cookie 有效期 30 天
