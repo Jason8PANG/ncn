@@ -36,20 +36,20 @@ router.post('/fill-new', isAuthenticated, async (req: Request, res: Response) =>
     const distWhere = sbuDes
       ? `AND [SBU_Des] = N'${String(sbuDes).replace(/'/g, "''")}'`
       : '';
-    const [issueDist] = await sequelize.query(
+    const issueDist = await sequelize.query(
       `SELECT TOP 10 Issue_Type, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE Issue_Type IS NOT NULL AND LTRIM(RTRIM(Issue_Type)) <> '' ${distWhere}
        GROUP BY Issue_Type ORDER BY c DESC`,
       { type: QueryTypes.SELECT }
     );
-    const [deepDist] = await sequelize.query(
+    const deepDist = await sequelize.query(
       `SELECT TOP 10 Deep_Annlysis, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE Deep_Annlysis IS NOT NULL AND LTRIM(RTRIM(Deep_Annlysis)) <> '' ${distWhere}
          AND Issue_Type IS NOT NULL AND LTRIM(RTRIM(Issue_Type)) <> ''
        GROUP BY Deep_Annlysis ORDER BY c DESC`,
       { type: QueryTypes.SELECT }
     );
-    const [qeDist] = await sequelize.query(
+    const qeDist = await sequelize.query(
       `SELECT TOP 10 QualityEngineer, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE QualityEngineer IS NOT NULL AND LTRIM(RTRIM(QualityEngineer)) <> '' ${distWhere}
        GROUP BY QualityEngineer ORDER BY c DESC`,
@@ -97,19 +97,19 @@ router.post('/suggest-edit', isAuthenticated, async (req: Request, res: Response
     const distWhere = sbuDes
       ? `AND [SBU_Des] = N'${String(sbuDes).replace(/'/g, "''")}'`
       : '';
-    const [issueDist] = await sequelize.query(
+    const issueDist = await sequelize.query(
       `SELECT TOP 8 Issue_Type, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE Issue_Type IS NOT NULL AND LTRIM(RTRIM(Issue_Type)) <> '' ${distWhere}
        GROUP BY Issue_Type ORDER BY c DESC`,
       { type: QueryTypes.SELECT }
     );
-    const [deepDist] = await sequelize.query(
+    const deepDist = await sequelize.query(
       `SELECT TOP 8 Deep_Annlysis, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE Deep_Annlysis IS NOT NULL AND LTRIM(RTRIM(Deep_Annlysis)) <> '' ${distWhere}
        GROUP BY Deep_Annlysis ORDER BY c DESC`,
       { type: QueryTypes.SELECT }
     );
-    const [qeDist] = await sequelize.query(
+    const qeDist = await sequelize.query(
       `SELECT TOP 8 QualityEngineer, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE QualityEngineer IS NOT NULL AND LTRIM(RTRIM(QualityEngineer)) <> '' ${distWhere}
        GROUP BY QualityEngineer ORDER BY c DESC`,

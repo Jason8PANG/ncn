@@ -31,34 +31,37 @@ export const getHistoricalSuggestions = async (
 
   try {
     // ME Engineer 分布
-    const [meRows] = await sequelize.query(
+    const meRows = await sequelize.query(
       `SELECT TOP 1 ME_Engineer, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE ME_Engineer IS NOT NULL AND LTRIM(RTRIM(ME_Engineer)) <> '' ${sbuWhere}
        GROUP BY ME_Engineer ORDER BY c DESC, MAX(ROWID) DESC`,
       { type: QueryTypes.SELECT }
     );
+    const meRow = (meRows as any[])[0];
 
     // QE 分布
-    const [qeRows] = await sequelize.query(
+    const qeRows = await sequelize.query(
       `SELECT TOP 1 QualityEngineer, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE QualityEngineer IS NOT NULL AND LTRIM(RTRIM(QualityEngineer)) <> '' ${sbuWhere}
        GROUP BY QualityEngineer ORDER BY c DESC, MAX(ROWID) DESC`,
       { type: QueryTypes.SELECT }
     );
+    const qeRow = (qeRows as any[])[0];
 
     // Issue Type 分布
-    const [issueRows] = await sequelize.query(
+    const issueRows = await sequelize.query(
       `SELECT TOP 1 Issue_Type, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE Issue_Type IS NOT NULL AND LTRIM(RTRIM(Issue_Type)) <> '' ${sbuWhere}
        GROUP BY Issue_Type ORDER BY c DESC, MAX(ROWID) DESC`,
       { type: QueryTypes.SELECT }
     );
+    const issueRow = (issueRows as any[])[0];
 
     // Deep Analysis 分布（优先匹配 Issue_Type；否则按 SBU_Des）
     const deepWhere = issueType
       ? `AND [Issue_Type] = N'${String(issueType).replace(/'/g, "''")}'`
       : '';
-    const [deepRows] = await sequelize.query(
+    const deepRows = await sequelize.query(
       `SELECT TOP 1 Deep_Annlysis, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE Deep_Annlysis IS NOT NULL AND LTRIM(RTRIM(Deep_Annlysis)) <> ''
          AND Issue_Type IS NOT NULL AND LTRIM(RTRIM(Issue_Type)) <> ''
@@ -66,15 +69,16 @@ export const getHistoricalSuggestions = async (
        GROUP BY Deep_Annlysis ORDER BY c DESC, MAX(ROWID) DESC`,
       { type: QueryTypes.SELECT }
     );
+    const deepRow = (deepRows as any[])[0];
 
     return {
-      meEngineer: (meRows as any)?.ME_Engineer || '',
-      qualityEngineer: (qeRows as any)?.QualityEngineer || '',
-      issueType: (issueRows as any)?.Issue_Type || '',
-      deepAnalysis: (deepRows as any)?.Deep_Annlysis || '',
-      meCount: Number((meRows as any)?.c || 0),
-      qeCount: Number((qeRows as any)?.c || 0),
-      issueCount: Number((issueRows as any)?.c || 0)
+      meEngineer: meRow?.ME_Engineer || '',
+      qualityEngineer: qeRow?.QualityEngineer || '',
+      issueType: issueRow?.Issue_Type || '',
+      deepAnalysis: deepRow?.Deep_Annlysis || '',
+      meCount: Number(meRow?.c || 0),
+      qeCount: Number(qeRow?.c || 0),
+      issueCount: Number(issueRow?.c || 0)
     };
   } catch (err) {
     logger.error('[AI] historical stats error:', err);
