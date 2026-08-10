@@ -113,7 +113,9 @@ export const resolveSafeDownloadPath = (baseUploadPath: string, requestedPath: s
 };
 
 export const extractSerialNoFromUploadFileName = (filePath: string): string | null => {
-  const name = path.basename(filePath);
+  // 兼容 UNC 路径（反斜杠）：Linux 容器里 path.basename 不识别 '\'，先转成正斜杠
+  const normalized = String(filePath || '').replace(/\\/g, '/');
+  const name = path.basename(normalized);
   const matched = /^NCN_(.+)\.[^.]+$/i.exec(name);
   if (!matched || !matched[1]) {
     return null;

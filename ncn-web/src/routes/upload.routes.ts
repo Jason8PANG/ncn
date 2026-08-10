@@ -117,7 +117,8 @@ router.get('/download', isAuthenticated, async (req: Request, res: Response) => 
 
     // 统一从上传根目录读取（数据库 FilePath 可能是 UNC 路径 \\suzvfile02\TaskManager\...
     // 或挂载路径，这里只取文件名拼到 UPLOAD_PATH 下，兼容共享路径方案）
-    const downloadFile = path.join(config.upload.path, path.basename(filePath));
+    const normalizedFilePath = String(filePath).replace(/\\/g, '/');
+    const downloadFile = path.join(config.upload.path, path.basename(normalizedFilePath));
 
     if (!fs.existsSync(downloadFile)) {
       return res.status(404).json({ error: 'File not found' });
