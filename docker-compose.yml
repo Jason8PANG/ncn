@@ -34,8 +34,8 @@ services:
       - UPLOAD_PATH=/app/uploads
       - TZ=Asia/Shanghai
     volumes:
-      # 宿主机路径映射，程序更新时上传文件不丢失
-      - ./uploads:/app/uploads
+      # 宿主机附件目录：服务器为 CIFS 共享挂载 /mnt/taskmanager（.env 配 UPLOAD_HOST_PATH=/mnt/taskmanager），本地开发默认 ./uploads
+      - ${UPLOAD_HOST_PATH:-./uploads}:/app/uploads
     networks:
       - public-net
     healthcheck:
