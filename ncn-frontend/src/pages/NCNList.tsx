@@ -7,7 +7,7 @@ import { SearchOutlined, PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOut
 import { useRecoilValue } from 'recoil';
 import { authState } from '../state/auth';
 import { queryNCNs } from '../services/ncn';
-import { closeNCNEntry, deleteNCNEntry, reopenNCNEntry } from '../services/entry';
+import { closeNCNEntry, deleteNCNEntry, reopenNCNEntry, getSBUDesOptions } from '../services/entry';
 import { Modal, message } from 'antd';
 import type { INCN_Entry, INCNQueryParams } from '../types';
 import dayjs from 'dayjs';
@@ -25,6 +25,20 @@ export default function NCNList() {
   const [form] = Form.useForm();
   const { user } = useRecoilValue(authState);
   const navigate = useNavigate();
+  // SBU 筛选选项：来自 NCN_Entry.SBU_Des 的 distinct 值
+  const [sbuOptions, setSbuOptions] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    getSBUDesOptions()
+      .then((response) => {
+        if (response.success && Array.isArray(response.data)) {
+          setSbuOptions((response.data as string[]).map((v) => ({ value: v, label: v })));
+        }
+      })
+      .catch(() => {
+        setSbuOptions([]);
+      });
+  }, []);
 
   const columns: ColumnsType<INCN_Entry> = [
     {
@@ -390,22 +404,14 @@ export default function NCNList() {
             <Input placeholder="Part ID" style={{ width: 150 }} />
           </Form.Item>
           <Form.Item name="sbu" label="SBU">
-            <Select placeholder="Select SBU" style={{ width: 150 }} allowClear>
-              <Select.Option value="S&N">S&N</Select.Option>
-              <Select.Option value="HVLM">HVLM</Select.Option>
-              <Select.Option value="Cleanroom">Cleanroom</Select.Option>
-              <Select.Option value="Copper">Copper</Select.Option>
-              <Select.Option value="Clean room">Clean room</Select.Option>
-              <Select.Option value="Fiber">Fiber</Select.Option>
-              <Select.Option value="Aero">Aero</Select.Option>
-              <Select.Option value="Medical-HMLV">Medical-HMLV</Select.Option>
-              <Select.Option value="SPO2">SPO2</Select.Option>
-              <Select.Option value="Industrial">Industrial</Select.Option>
-              <Select.Option value="COE">COE</Select.Option>
-              <Select.Option value="P2-Industrial">P2-Industrial</Select.Option>
-              <Select.Option value="Cor">Cor</Select.Option>
-              <Select.Option value="Penang-Industrial">Penang-Industrial</Select.Option>
-            </Select>
+            <Select
+              placeholder="Select SBU"
+              style={{ width: 180 }}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={sbuOptions}
+            />
           </Form.Item>
           <Form.Item name="status" label="Status">
             <Select placeholder="Select Status" style={{ width: 120 }} allowClear>

@@ -43,6 +43,12 @@ export const getSBUDescriptionOptions = async (sbu: string): Promise<IApiRespons
   return response.data;
 };
 
+// NCN List SBU 筛选选项：来自 NCN_Entry.SBU_Des 的 distinct 值
+export const getSBUDesOptions = async (): Promise<IApiResponse<string[]>> => {
+  const response = await api.get('/entry/sbu-des/options');
+  return response.data;
+};
+
 export const lookupStaffByEmpId = async (empId: string): Promise<IApiResponse<any>> => {
   const response = await api.get(`/entry/staff/${empId}`);
   return response.data;
