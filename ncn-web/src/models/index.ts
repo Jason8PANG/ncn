@@ -33,21 +33,17 @@ import { NCN_Entry } from './NCN_Entry';
 import { NCN_Action_Detail } from './NCN_Action_Detail';
 import { NAI_Staff_Info } from './NAI_Staff_Info';
 import { Code_Table } from './Code_Table';
-import { NCN_Attachment } from './NCN_Attachment';
 
 // Define associations
 NCN_Entry.hasMany(NCN_Action_Detail, { foreignKey: 'NCN_ID', as: 'actions' });
 NCN_Action_Detail.belongsTo(NCN_Entry, { foreignKey: 'NCN_ID', as: 'ncn' });
-NCN_Entry.hasMany(NCN_Attachment, { foreignKey: 'NCN_ID', as: 'attachments' });
-NCN_Attachment.belongsTo(NCN_Entry, { foreignKey: 'NCN_ID', as: 'ncn' });
 
 // Export all models
 export {
   NCN_Entry,
   NCN_Action_Detail,
   NAI_Staff_Info,
-  Code_Table,
-  NCN_Attachment
+  Code_Table
 };
 
 // Test connection

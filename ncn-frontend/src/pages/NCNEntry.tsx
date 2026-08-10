@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Form, Input, Select, Button, Card, Row, Col, DatePicker, message, Typography, Divider, Space, Upload, Table, Modal } from 'antd';
-import { SaveOutlined, RollbackOutlined, FileAddOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Form, Input, Select, Button, Card, Row, Col, DatePicker, message, Typography, Divider, Space, Upload } from 'antd';
+import { SaveOutlined, RollbackOutlined, FileAddOutlined, UploadOutlined, DownloadOutlined, PaperClipOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import dayjs, { Dayjs } from 'dayjs';
 import { useRecoilValue } from 'recoil';
@@ -20,7 +20,7 @@ import {
   getIssueTypeOptions,
   getDeepAnalysisOptions
 } from '../services/entry';
-import { getAttachments, uploadAttachment, downloadAttachment, deleteAttachment, type IAttachment } from '../services/attachment';
+import { uploadFile, downloadFile } from '../services/upload';
 import type { INCN_Entry } from '../types';
 
 const { Title } = Typography;
@@ -55,15 +55,13 @@ export default function NCNEntry() {
   const [issueTypeOptions, setIssueTypeOptions] = useState<{ value: string; label: string }[]>([]);
   const [deepAnalysisOptions, setDeepAnalysisOptions] = useState<{ value: string; label: string }[]>([]);
   const { user } = useRecoilValue(authState);
-  // 附件：数据库存储（参照 .NET 附件功能，二进制入库）
-  const [attachments, setAttachments] = useState<IAttachment[]>([]);
-  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  // 附件：传统共享路径方案（文件存 \\suzvfile02\TaskManager\NCN_{SerialNo}.{ext}，路径存 FilePath 字段）
+  const [existingFilePath, setExistingFilePath] = useState('');
   const [uploadFileList, setUploadFileList] = useState<UploadFile[]>([]);
 
   useEffect(() => {
     if (id) {
       loadEntry(parseInt(id, 10));
-      loadAttachments(parseInt(id, 10));
     } else {
       requestLatestSerialNo();
     }
@@ -222,6 +220,7 @@ export default function NCNEntry() {
         // 编辑模式：移除 FinderEmpId 和 LineLeaderEmpId（它们是前端虚拟字段，编辑时不需要）
         const { FinderEmpId, LineLeaderEmpId, ...restData } = data as any;
         form.setFieldsValue(restData);
+        setExistingFilePath(data.FilePath || '');
         setFinderName(data.Finder || '');
         setFinderLookupMessage('');
         setLineLeaderName(data.LineLeader || '');
@@ -259,31 +258,14 @@ export default function NCNEntry() {
     }
   };
 
-  // 加载该 NCN 已上传的附件列表（编辑模式）
-  const loadAttachments = async (ncnId: number) => {
-    setAttachmentsLoading(true);
-    try {
-      const response = await getAttachments(ncnId);
-      if (response.success && Array.isArray(response.data)) {
-        setAttachments(response.data as IAttachment[]);
-      } else {
-        setAttachments([]);
-      }
-    } catch {
-      setAttachments([]);
-    } finally {
-      setAttachmentsLoading(false);
-    }
-  };
-
-  // 保存成功后，逐个上传选中的附件（新建模式用返回的 ROWID 关联）
-  const uploadPendingFiles = async (ncnId: number): Promise<number> => {
+  // 保存成功后，逐个上传选中的附件到共享目录（编辑用当前 SerialNo，新建用后端返回的 SerialNo）
+  const uploadPendingFiles = async (serialNo: string): Promise<number> => {
     let failed = 0;
     for (const f of uploadFileList) {
       const originFile = f.originFileObj as File | undefined;
       if (!originFile) continue;
       try {
-        const resp = await uploadAttachment(originFile, ncnId);
+        const resp = await uploadFile(originFile, serialNo);
         if (!resp.success) failed += 1;
       } catch {
         failed += 1;
@@ -292,13 +274,20 @@ export default function NCNEntry() {
     return failed;
   };
 
-  const handleDownloadAttachment = async (att: IAttachment) => {
+  // 从共享路径提取文件名（如 \\suzvfile02\TaskManager\NCN_NCN2608011.jpg → NCN_NCN2608011.jpg）
+  const extractFileNameFromPath = (filePath: string): string => {
+    const normalized = String(filePath || '').replace(/\\/g, '/');
+    return normalized.split('/').pop() || normalized;
+  };
+
+  // 下载已有附件（传统方案：按 filePath 从共享目录下载）
+  const handleDownloadAttachment = async (filePath: string) => {
     try {
-      const blob = await downloadAttachment(att.ROWID);
+      const blob = await downloadFile(filePath);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = att.FileName;
+      a.download = extractFileNameFromPath(filePath);
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -306,33 +295,6 @@ export default function NCNEntry() {
     } catch {
       message.error('Failed to download attachment');
     }
-  };
-
-  const handleDeleteAttachment = (att: IAttachment) => {
-    Modal.confirm({
-      title: 'Confirm Delete',
-      content: `Delete attachment "${att.FileName}"?`,
-      onOk: async () => {
-        try {
-          const resp = await deleteAttachment(att.ROWID);
-          if (resp.success) {
-            message.success('Attachment deleted');
-            if (id) loadAttachments(parseInt(id, 10));
-          } else {
-            message.error(resp.error || 'Failed to delete attachment');
-          }
-        } catch (error: any) {
-          message.error(error?.response?.data?.error || 'Failed to delete attachment');
-        }
-      }
-    });
-  };
-
-  const formatFileSize = (size: number): string => {
-    if (!size) return '-';
-    if (size < 1024) return `${size} B`;
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-    return `${(size / 1024 / 1024).toFixed(2)} MB`;
   };
 
   const loadSBUDescriptionOptions = async (sbu: string) => {
@@ -423,9 +385,10 @@ export default function NCNEntry() {
         // UpdateBy 由后端自动设置，前端不传
         const response = await updateNCNEntry(parseInt(id, 10), data);
         if (response.success) {
-          // 保存成功后上传选中的附件
-          if (uploadFileList.length > 0) {
-            const failed = await uploadPendingFiles(parseInt(id, 10));
+          // 保存成功后上传选中的附件（用当前 NCN 的 SerialNo）
+          const currentSerialNo = form.getFieldValue('SerialNo') || '';
+          if (uploadFileList.length > 0 && currentSerialNo) {
+            const failed = await uploadPendingFiles(String(currentSerialNo));
             if (failed > 0) {
               message.warning(`NCN updated, but ${failed} attachment(s) failed to upload`);
               navigate('/ncn-list');
@@ -440,10 +403,10 @@ export default function NCNEntry() {
         data.CreateBy = user?.lanId;
         const response = await createNCNEntry(data);
         if (response.success) {
-          // 新建成功：用返回的 ROWID 上传附件
-          const newRowId = response.data?.ROWID as number | undefined;
-          if (newRowId && uploadFileList.length > 0) {
-            const failed = await uploadPendingFiles(newRowId);
+          // 新建成功：用返回的 SerialNo 上传附件（上传接口按 SerialNo 命名文件并写回 FilePath）
+          const newSerialNo = response.data?.SerialNo as string | undefined;
+          if (newSerialNo && uploadFileList.length > 0) {
+            const failed = await uploadPendingFiles(newSerialNo);
             if (failed > 0) {
               message.warning(`NCN created, but ${failed} attachment(s) failed to upload`);
               navigate('/ncn-list');
@@ -775,55 +738,27 @@ export default function NCNEntry() {
             </>
           )}
 
-          <Divider orientation="left">Attachments (stored in database)</Divider>
+          <Divider orientation="left">Attachments</Divider>
 
-          {isEditMode && (
-            <Table
-              rowKey="ROWID"
-              dataSource={attachments}
-              pagination={false}
-              size="small"
-              loading={attachmentsLoading}
-              style={{ marginBottom: 16 }}
-              locale={{ emptyText: 'No attachments yet' }}
-              columns={[
-                { title: 'File Name', dataIndex: 'FileName', ellipsis: true },
-                { title: 'Size', dataIndex: 'FileSize', width: 100, render: (s: number) => formatFileSize(s) },
-                { title: 'Uploaded By', dataIndex: 'UploadBy', width: 130 },
-                {
-                  title: 'Date',
-                  dataIndex: 'UploadDate',
-                  width: 150,
-                  render: (d: string) => (d ? dayjs(d).format('YYYY-MM-DD HH:mm') : '-')
-                },
-                {
-                  title: 'Actions',
-                  key: 'actions',
-                  width: 160,
-                  render: (_: any, record: IAttachment) => (
-                    <Space size={0}>
-                      <Button
-                        type="link"
-                        size="small"
-                        icon={<DownloadOutlined />}
-                        onClick={() => handleDownloadAttachment(record)}
-                      >
-                        Download
-                      </Button>
-                      <Button
-                        type="link"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => handleDeleteAttachment(record)}
-                      >
-                        Delete
-                      </Button>
-                    </Space>
-                  )
-                }
-              ]}
-            />
+          {isEditMode && existingFilePath && (
+            <Space style={{ marginBottom: 12 }} align="center">
+              <Typography.Text type="secondary">Current attachment:</Typography.Text>
+              <Typography.Text strong>
+                <PaperClipOutlined style={{ marginRight: 4 }} />
+                {extractFileNameFromPath(existingFilePath)}
+              </Typography.Text>
+              <Button
+                type="link"
+                size="small"
+                icon={<DownloadOutlined />}
+                onClick={() => handleDownloadAttachment(existingFilePath)}
+              >
+                Download
+              </Button>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                (uploading a new file will replace it)
+              </Typography.Text>
+            </Space>
           )}
 
           <Upload
@@ -838,7 +773,7 @@ export default function NCNEntry() {
             <Button icon={<UploadOutlined />}>Select Files</Button>
           </Upload>
           <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-            Allowed: jpg/jpeg/bmp/gif/png/xls/xlsx/docx/pptx/ppt/pdf, max 10MB per file. Attachments are uploaded to database after the NCN is saved.
+            Allowed: jpg/jpeg/bmp/gif/png/xls/xlsx/docx/pptx/ppt/pdf, max 10MB per file. Files are saved to the shared folder after the NCN is saved.
           </Typography.Text>
 
           <Form.Item style={{ marginTop: 24 }}>

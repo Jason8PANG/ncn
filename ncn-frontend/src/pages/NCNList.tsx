@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Table, Card, Form, Input, Select, Button, Space, DatePicker, Tag, Typography, Dropdown } from 'antd';
+import { Table, Card, Form, Input, Select, Button, Space, DatePicker, Tag, Typography, Dropdown, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { MenuProps } from 'antd';
-import { SearchOutlined, PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOutlined, DeleteOutlined, MoreOutlined, UndoOutlined, DownloadOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOutlined, DeleteOutlined, MoreOutlined, UndoOutlined, DownloadOutlined, PaperClipOutlined } from '@ant-design/icons';
 import { useRecoilValue } from 'recoil';
 import { authState } from '../state/auth';
 import { queryNCNs } from '../services/ncn';
@@ -27,6 +27,18 @@ export default function NCNList() {
   const navigate = useNavigate();
 
   const columns: ColumnsType<INCN_Entry> = [
+    {
+      title: 'Att',
+      key: 'hasAttachment',
+      width: 45,
+      align: 'center' as const,
+      render: (_: any, record: INCN_Entry) =>
+        record.FilePath ? (
+          <Tooltip title="Has attachment">
+            <PaperClipOutlined style={{ color: '#507CD1' }} />
+          </Tooltip>
+        ) : null
+    },
     {
       title: 'Serial No',
       dataIndex: 'SerialNo',
@@ -265,7 +277,7 @@ export default function NCNList() {
       if (values.serialNo) params.serialNo = values.serialNo;
       if (values.wo) params.customer = values.wo;
       if (values.partId) params.partId = values.partId;
-      if (values.sbu) params.sbu = values.sbu;
+      if (values.sbu) params.sbuDes = values.sbu;
       if (values.status) params.status = values.status;
       if (values.dateRange && values.dateRange.length === 2) {
         params.dateFrom = values.dateRange[0].format('YYYY-MM-DD');

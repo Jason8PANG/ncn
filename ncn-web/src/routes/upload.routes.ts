@@ -72,7 +72,10 @@ router.post('/', isAuthenticated, upload.single('file'), async (req: Request, re
     const filePath = req.file.path;
     const fileName = req.file.filename;
 
-    logger.info(`File uploaded: ${fileName} by ${lanId}`);
+    // 传统方案：把附件路径写入 NCN_Entry.FilePath（共享路径方式，NCN-list 据此显示附件标识）
+    await entry.update({ FilePath: filePath, UpdateBy: lanId });
+
+    logger.info(`File uploaded: ${fileName} by ${lanId}, FilePath saved for ${serialNo}`);
 
     res.json({
       success: true,
