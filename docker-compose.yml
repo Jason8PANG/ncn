@@ -32,6 +32,10 @@ services:
       - SMTP_FROM=${SMTP_FROM}
       - NCN_APP_URL=${NCN_APP_URL}
       - UPLOAD_PATH=/app/uploads
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      - LLM_MODEL=${LLM_MODEL:-qwen-plus}
+      - LLM_TIMEOUT_MS=${LLM_TIMEOUT_MS:-30000}
       - TZ=Asia/Shanghai
     volumes:
       # 宿主机附件目录：服务器为 CIFS 共享挂载 /mnt/taskmanager（.env 配 UPLOAD_HOST_PATH=/mnt/taskmanager），本地开发默认 ./uploads
