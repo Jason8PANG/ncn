@@ -297,7 +297,16 @@ export default function NCNEntry() {
       setAiText((prev) => (prev ? `${prev} ${transcript}` : transcript));
     };
     recognition.onerror = (event: any) => {
-      message.error(`Speech recognition error: ${event?.error || 'unknown'}`);
+      const err = event?.error || 'unknown';
+      if (err === 'not-allowed') {
+        message.error('Voice input is not allowed: browsers require HTTPS (or localhost) for speech recognition. Please use text input, or access NCN over HTTPS.', 6);
+      } else if (err === 'no-speech') {
+        message.warning('No speech detected, please try again');
+      } else if (err === 'audio-capture') {
+        message.error('No microphone found. Please check your microphone.');
+      } else {
+        message.error(`Speech recognition error: ${err}`);
+      }
       setListening(false);
     };
     recognition.onend = () => setListening(false);
