@@ -22,10 +22,11 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const { serialNo } = req.body;
+    // 先存临时名，避免 filename 回调阶段 req.body.serialNo 尚未解析到
+    //（FormData 里 serialNo 字段若在 file 之后，multer 读不到 → NCN_undefined.{ext}）
     const ext = path.extname(file.originalname);
-    const fileName = `NCN_${serialNo}${ext}`;
-    cb(null, fileName);
+    const tmpName = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+    cb(null, tmpName);
   }
 });
 
@@ -68,8 +69,19 @@ router.post('/', isAuthenticated, upload.single('file'), async (req: Request, re
       return res.status(403).json({ error: 'Forbidden - No permission to upload attachment for this NCN' });
     }
 
-    const filePath = req.file.path;
-    const fileName = req.file.filename;
+    // 重命名为规范文件名 NCN_{serialNo}.{ext}（临时名 → 最终名，覆盖已存在文件）
+    const ext = path.extname(req.file.filename);
+    const finalName = `NCN_${serialNo}${ext}`;
+    const finalPath = path.join(config.upload.path, finalName);
+    if (req.file.path !== finalPath) {
+      if (fs.existsSync(finalPath)) {
+        fs.unlinkSync(finalPath);
+      }
+      fs.renameSync(req.file.path, finalPath);
+    }
+
+    const filePath = finalPath;
+    const fileName = finalName;
 
     // 传统方案：把附件路径写入 NCN_Entry.FilePath（共享路径方式，NCN-list 据此显示附件标识）
     await entry.update({ FilePath: filePath, UpdateBy: lanId });

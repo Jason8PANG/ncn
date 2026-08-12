@@ -129,10 +129,16 @@ export default function NCNList() {
       }
     },
     {
+      title: 'ME',
+      dataIndex: 'ME_Engineer',
+      key: 'ME_Engineer',
+      width: 110
+    },
+    {
       title: 'QE',
       dataIndex: 'QualityEngineer',
       key: 'QualityEngineer',
-      width: 100
+      width: 110
     },
     {
       title: 'Action',

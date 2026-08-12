@@ -14,8 +14,10 @@ export interface IUploadResponse {
 
 export const uploadFile = async (file: File, serialNo: string): Promise<IUploadResponse> => {
   const formData = new FormData();
-  formData.append('file', file);
+  // 注意：serialNo 必须放在 file 之前！multer 的 filename 回调在解析到 file 时执行，
+  // 此时只有已解析的字段可见。serialNo 在后会导致文件名变成 NCN_undefined.{ext}
   formData.append('serialNo', serialNo);
+  formData.append('file', file);
 
   const response = await api.post('/upload', formData, {
     headers: {
