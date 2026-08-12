@@ -269,8 +269,10 @@ export default function NCNEntry() {
   const uploadPendingFiles = async (serialNo: string): Promise<number> => {
     let failed = 0;
     for (const f of uploadFileList) {
-      const originFile = f.originFileObj as File | undefined;
-      if (!originFile) continue;
+      // beforeUpload 传入的是 RcFile（继承 File，无 originFileObj 属性）；
+      // 受控 fileList 回显的 UploadFile 才有 originFileObj。两种情况都兜底。
+      const originFile = (f.originFileObj || f) as File | undefined;
+      if (!originFile || typeof originFile.size !== 'number') continue;
       try {
         const resp = await uploadFile(originFile, serialNo);
         if (!resp.success) failed += 1;

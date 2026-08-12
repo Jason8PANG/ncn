@@ -87,7 +87,8 @@ export const canQECloseNCN = (req: Request, entry: NCN_Entry): boolean => {
 };
 
 export const canManageAttachment = (req: Request, entry: NCN_Entry): boolean => {
-  return isAdminRequest(req) || isQEOwner(req, entry) || isEntryOwner(req, entry);
+  // 与 canEditNCNEntry 保持一致：Admin、QE 工程师、责任人(Finder/Owner)、ME Engineer
+  return isAdminRequest(req) || isQEOwner(req, entry) || isEntryOwner(req, entry) || isMEEngineerOwner(req, entry);
 };
 
 // 只有 Admin 可以删除 NCN Entry 及其关联的 Action
