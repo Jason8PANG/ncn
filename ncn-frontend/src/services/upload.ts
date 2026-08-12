@@ -32,3 +32,9 @@ export const downloadFile = async (filePath: string): Promise<Blob> => {
   });
   return response.data;
 };
+
+// 删除附件：删除共享目录文件并清空 NCN_Entry.FilePath
+export const deleteAttachmentFile = async (serialNo: string): Promise<IUploadResponse> => {
+  const response = await api.delete(`/upload/${serialNo}`);
+  return response.data;
+};

@@ -134,6 +134,42 @@ router.get('/download', isAuthenticated, async (req: Request, res: Response) => 
   }
 });
 
+// 删除附件：删除共享目录文件 + 清空 NCN_Entry.FilePath
+router.delete('/:serialNo', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const serialNo = String(req.params.serialNo || '').trim();
+    if (!serialNo) {
+      return res.status(400).json({ error: 'serialNo is required' });
+    }
+
+    const entry = await NCN_Entry.findOne({ where: { SerialNo: serialNo } });
+    if (!entry) {
+      return res.status(404).json({ error: 'NCN not found for this serialNo' });
+    }
+
+    if (!canManageAttachment(req, entry)) {
+      return res.status(403).json({ error: 'Forbidden - No permission to delete attachment for this NCN' });
+    }
+
+    if (entry.FilePath) {
+      // 统一从上传根目录定位文件（兼容 UNC/挂载路径，只取文件名）
+      const normalized = String(entry.FilePath).replace(/\\/g, '/');
+      const fileName = path.basename(normalized);
+      const target = path.join(config.upload.path, fileName);
+      if (fs.existsSync(target)) {
+        fs.unlinkSync(target);
+        logger.info(`Attachment file deleted: ${fileName} for ${serialNo} by ${(req.user as any)?.lanId}`);
+      }
+      await entry.update({ FilePath: '', UpdateBy: (req.user as any)?.lanId || '' });
+    }
+
+    res.json({ success: true, data: { serialNo, filePath: '' } });
+  } catch (error) {
+    logger.error('Error deleting file:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
 router.use((error: any, req: Request, res: Response, next: any) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {

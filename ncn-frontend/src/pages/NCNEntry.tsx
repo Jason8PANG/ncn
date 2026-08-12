@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Form, Input, Select, Button, Card, Row, Col, DatePicker, message, Typography, Divider, Space, Upload, Modal, Tag, Collapse } from 'antd';
-import { SaveOutlined, RollbackOutlined, FileAddOutlined, UploadOutlined, DownloadOutlined, PaperClipOutlined, AudioOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { SaveOutlined, RollbackOutlined, FileAddOutlined, UploadOutlined, DownloadOutlined, PaperClipOutlined, AudioOutlined, ThunderboltOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import dayjs, { Dayjs } from 'dayjs';
 import { useRecoilValue } from 'recoil';
@@ -20,7 +20,7 @@ import {
   getIssueTypeOptions,
   getDeepAnalysisOptions
 } from '../services/entry';
-import { uploadFile, downloadFile } from '../services/upload';
+import { uploadFile, downloadFile, deleteAttachmentFile } from '../services/upload';
 import { aiFillNew, aiSuggestEdit, type IAiSuggestEditResponse } from '../services/ai';
 import type { INCN_Entry } from '../types';
 
@@ -428,6 +428,35 @@ export default function NCNEntry() {
     } catch {
       message.error('Failed to download attachment');
     }
+  };
+
+  // 删除已有附件（传统方案：删除共享目录文件 + 清空 FilePath）
+  const handleDeleteAttachment = () => {
+    Modal.confirm({
+      title: 'Confirm Delete',
+      content: `Delete attachment "${extractFileNameFromPath(existingFilePath)}"? The file will be removed from the shared folder.`,
+      okText: 'Yes, Delete',
+      okButtonProps: { danger: true },
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          const currentSerialNo = form.getFieldValue('SerialNo') || '';
+          if (!currentSerialNo) {
+            message.error('SerialNo is missing, cannot delete attachment');
+            return;
+          }
+          const resp = await deleteAttachmentFile(String(currentSerialNo));
+          if (resp.success) {
+            setExistingFilePath('');
+            message.success('Attachment deleted');
+          } else {
+            message.error(resp.error || 'Failed to delete attachment');
+          }
+        } catch (error: any) {
+          message.error(error?.response?.data?.error || 'Failed to delete attachment');
+        }
+      }
+    });
   };
 
   const loadSBUDescriptionOptions = async (sbu: string) => {
@@ -964,6 +993,15 @@ export default function NCNEntry() {
                 onClick={() => handleDownloadAttachment(existingFilePath)}
               >
                 Download
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleDeleteAttachment}
+              >
+                Delete
               </Button>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 (uploading a new file will replace it)
