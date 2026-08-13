@@ -181,7 +181,7 @@ router.get('/sbu/options', isAuthenticated, async (req: Request, res: Response) 
 // 获取 SBU_Des 选项（NCN_Entry 表已有数据的 distinct 值，供 NCN List 筛选使用）
 router.get('/sbu-des/options', isAuthenticated, async (req: Request, res: Response) => {
   try {
-    const [rows] = await sequelize.query(
+    const rows = await sequelize.query(
       `SELECT DISTINCT SBU_Des FROM dbo.NCN_Entry
        WHERE SBU_Des IS NOT NULL AND LTRIM(RTRIM(SBU_Des)) <> ''
        ORDER BY SBU_Des`,
