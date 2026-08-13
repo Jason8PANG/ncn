@@ -14,6 +14,7 @@ import {
   lookupStaffByEmpId,
   getSBUOptions,
   getSBUDescriptionOptions,
+  getSBUDesRecommend,
   getOwnerOptions,
   getMEEngineerOptions,
   getQEEngineerOptions,
@@ -471,8 +472,22 @@ export default function NCNEntry() {
         const options = response.data.map(item => ({ value: item, label: item }));
         setSbuDesOptions(options);
 
-        if (options.length === 1) {
-          form.setFieldsValue({ SBU_Des: options[0].value });
+        // 仅新建模式自动带出（编辑模式由 loadEntry 回显，不能覆盖）
+        if (!isEditMode) {
+          // 优先带出该 SBU 的历史最常用 SBU_Des（与 .NET 时代数据一致）
+          let filled = false;
+          try {
+            const recResp = await getSBUDesRecommend(sbu);
+            if (recResp.success && recResp.data) {
+              form.setFieldsValue({ SBU_Des: recResp.data });
+              filled = true;
+            }
+          } catch {
+            // 历史推荐失败则回退到单选项自动填
+          }
+          if (!filled && options.length === 1) {
+            form.setFieldsValue({ SBU_Des: options[0].value });
+          }
         }
       } else {
         setSbuDesOptions([]);

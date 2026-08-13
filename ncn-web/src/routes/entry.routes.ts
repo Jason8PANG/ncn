@@ -195,6 +195,29 @@ router.get('/sbu-des/options', isAuthenticated, async (req: Request, res: Respon
   }
 });
 
+// 获取 SBU_Des 历史推荐值：该 SBU 在历史 NCN 里最常用的 SBU_Des（与 .NET 时代数据一致）
+router.get('/sbu-des/recommend', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { sbu } = req.query;
+    if (!sbu || typeof sbu !== 'string' || !String(sbu).trim()) {
+      return res.status(400).json({ error: 'sbu is required' });
+    }
+    const safeSbu = String(sbu).replace(/'/g, "''");
+    const rows = await sequelize.query(
+      `SELECT TOP 1 SBU_Des FROM dbo.NCN_Entry
+       WHERE SBU = N'${safeSbu}'
+         AND SBU_Des IS NOT NULL AND LTRIM(RTRIM(SBU_Des)) <> ''
+       GROUP BY SBU_Des ORDER BY COUNT(*) DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    const first = (rows as any[])[0];
+    res.json({ success: true, data: first?.SBU_Des || '' });
+  } catch (error) {
+    logger.error('Error fetching SBU_Des recommend:', error);
+    res.status(500).json({ error: 'Failed to fetch SBU_Des recommend' });
+  }
+});
+
 router.get('/issue-type/options', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const issueTypes = await Code_Table.findAll({

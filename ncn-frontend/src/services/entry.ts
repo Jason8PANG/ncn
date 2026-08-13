@@ -49,6 +49,12 @@ export const getSBUDesOptions = async (): Promise<IApiResponse<string[]>> => {
   return response.data;
 };
 
+// SBU_Des 历史推荐值：该 SBU 在历史 NCN 里最常用的 SBU_Des（与 .NET 时代数据一致）
+export const getSBUDesRecommend = async (sbu: string): Promise<IApiResponse<string>> => {
+  const response = await api.get('/entry/sbu-des/recommend', { params: { sbu } });
+  return response.data;
+};
+
 export const lookupStaffByEmpId = async (empId: string): Promise<IApiResponse<any>> => {
   const response = await api.get(`/entry/staff/${empId}`);
   return response.data;
