@@ -46,7 +46,11 @@ export default function NCNList() {
     getMEEngineerOptions()
       .then((response) => {
         if (response.success && Array.isArray(response.data)) {
-          setMeOptions((response.data as string[]).map((v) => ({ value: v, label: v })));
+          // 后端返回 [{value,label}] 或 string[]，两种都兼容
+          setMeOptions((response.data as any[]).map((item) => ({
+            value: item.value || item,
+            label: item.label || item
+          })));
         }
       })
       .catch(() => setMeOptions([]));
@@ -54,7 +58,10 @@ export default function NCNList() {
     getQEEngineerOptions()
       .then((response) => {
         if (response.success && Array.isArray(response.data)) {
-          setQeOptions((response.data as string[]).map((v) => ({ value: v, label: v })));
+          setQeOptions((response.data as any[]).map((item) => ({
+            value: item.value || item,
+            label: item.label || item
+          })));
         }
       })
       .catch(() => setQeOptions([]));

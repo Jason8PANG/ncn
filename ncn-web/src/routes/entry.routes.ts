@@ -230,24 +230,25 @@ router.get('/owner/options', isAuthenticated, async (req: Request, res: Response
       order: [['Department', 'ASC']]
     });
 
-    let owners: { Lan_ID: string; Staff_Name: string; Email_Addr: string }[] = [];
+    const ownerWhere: any = {
+      Email_Addr: { [Op.ne]: '' },
+      Leave_Date: null,
+      Lan_ID: { [Op.ne]: '' }
+    };
     if (dept && typeof dept === 'string') {
-      owners = await NAI_Staff_Info.findAll({
-        where: {
-          Department: dept,
-          Email_Addr: { [Op.ne]: '' },
-          Leave_Date: null,
-          Lan_ID: { [Op.ne]: '' }
-        },
-        attributes: ['Lan_ID', 'Staff_Name', 'Email_Addr'],
-        order: [['Lan_ID', 'ASC']]
-      });
+      ownerWhere.Department = dept;
     }
+    const owners = await NAI_Staff_Info.findAll({
+      where: ownerWhere,
+      attributes: ['Lan_ID', 'Staff_Name', 'Email_Addr'],
+      order: [['Lan_ID', 'ASC']]
+    });
 
     res.json({
       success: true,
       data: {
         departments: departments.map((d: any) => d.Department),
+        // 不带 dept 时返回全部在职员工（供 NCN List 全量 Owner 筛选）；带 dept 时按部门过滤
         owners: owners.map(o => ({ lanId: o.Lan_ID, name: o.Staff_Name, email: o.Email_Addr }))
       }
     });
