@@ -41,8 +41,8 @@ router.get('/', isAuthenticated, async (req: Request, res: Response) => {
       }
       whereClause.NCN_Type = ncnTypeValue;
     }
-    if (qualityEngineer) whereClause.QualityEngineer = qualityEngineer;
-    if (meEngineer) whereClause.ME_Engineer = meEngineer;
+    if (qualityEngineer) whereClause.QualityEngineer = { [Op.like]: `%${qualityEngineer}%` };
+    if (meEngineer) whereClause.ME_Engineer = { [Op.like]: `%${meEngineer}%` };
     if (finderDept) whereClause.Finder_Dept = finderDept;
     if (owner) whereClause.Owner = { [Op.like]: `%${owner}%` };
     const normalizedSbuList = normalizeListParam(sbuList);

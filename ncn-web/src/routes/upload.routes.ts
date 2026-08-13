@@ -6,7 +6,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { isAuthenticated, getCurrentUserLanId } from '../middleware/auth';
 import {
-  canManageAttachment,
+  canUploadAttachment,
   extractSerialNoFromUploadFileName
 } from '../middleware/authorization';
 import { NCN_Entry } from '../models';
@@ -65,7 +65,7 @@ router.post('/', isAuthenticated, upload.single('file'), async (req: Request, re
       return res.status(404).json({ error: 'NCN not found for this serialNo' });
     }
 
-    if (!canManageAttachment(req, entry)) {
+    if (!canUploadAttachment(req, entry)) {
       return res.status(403).json({ error: 'Forbidden - No permission to upload attachment for this NCN' });
     }
 
@@ -123,10 +123,7 @@ router.get('/download', isAuthenticated, async (req: Request, res: Response) => 
       return res.status(404).json({ error: 'NCN not found for requested file' });
     }
 
-    if (!canManageAttachment(req, entry)) {
-      return res.status(403).json({ error: 'Forbidden - No permission to download attachment for this NCN' });
-    }
-
+    // 下载不限权限：任何登录用户都可下载附件（isAuthenticated 已保证登录）
     // 统一从上传根目录读取（数据库 FilePath 可能是 UNC 路径 \\suzvfile02\TaskManager\...
     // 或挂载路径，这里只取文件名拼到 UPLOAD_PATH 下，兼容共享路径方案）
     const normalizedFilePath = String(filePath).replace(/\\/g, '/');
@@ -159,7 +156,7 @@ router.delete('/:serialNo', isAuthenticated, async (req: Request, res: Response)
       return res.status(404).json({ error: 'NCN not found for this serialNo' });
     }
 
-    if (!canManageAttachment(req, entry)) {
+    if (!canUploadAttachment(req, entry)) {
       return res.status(403).json({ error: 'Forbidden - No permission to delete attachment for this NCN' });
     }
 

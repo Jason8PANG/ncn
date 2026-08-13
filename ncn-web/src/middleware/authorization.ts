@@ -41,6 +41,11 @@ const isEntryOwner = (req: Request, entry: NCN_Entry): boolean => {
   return normalizeLanId(entry.Finder) === current || normalizeLanId(entry.Owner) === current;
 };
 
+// 仅 Owner（不含 Finder）
+const isOwnerOnly = (req: Request, entry: NCN_Entry): boolean => {
+  return normalizeLanId(entry.Owner) === getNormalizedCurrentLanId(req);
+};
+
 const isActionOwner = (req: Request, action: NCN_Action_Detail): boolean => {
   return normalizeLanId(action.ActionOwner) === getNormalizedCurrentLanId(req);
 };
@@ -86,9 +91,9 @@ export const canQECloseNCN = (req: Request, entry: NCN_Entry): boolean => {
   return isAdminRequest(req) || isQEOwner(req, entry);
 };
 
-export const canManageAttachment = (req: Request, entry: NCN_Entry): boolean => {
-  // 与 canEditNCNEntry 保持一致：Admin、QE 工程师、责任人(Finder/Owner)、ME Engineer
-  return isAdminRequest(req) || isQEOwner(req, entry) || isEntryOwner(req, entry) || isMEEngineerOwner(req, entry);
+// 附件上传/删除权限：仅 Admin、ME Engineer、Owner（下载不限，任何登录用户都可下载）
+export const canUploadAttachment = (req: Request, entry: NCN_Entry): boolean => {
+  return isAdminRequest(req) || isMEEngineerOwner(req, entry) || isOwnerOnly(req, entry);
 };
 
 // 只有 Admin 可以删除 NCN Entry 及其关联的 Action

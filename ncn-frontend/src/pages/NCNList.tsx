@@ -7,7 +7,7 @@ import { SearchOutlined, PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOut
 import { useRecoilValue } from 'recoil';
 import { authState } from '../state/auth';
 import { queryNCNs } from '../services/ncn';
-import { closeNCNEntry, deleteNCNEntry, reopenNCNEntry, getSBUDesOptions } from '../services/entry';
+import { closeNCNEntry, deleteNCNEntry, reopenNCNEntry, getSBUDesOptions, getMEEngineerOptions, getQEEngineerOptions, getOwnerOptions } from '../services/entry';
 import { Modal, message } from 'antd';
 import type { INCN_Entry, INCNQueryParams } from '../types';
 import dayjs from 'dayjs';
@@ -27,6 +27,10 @@ export default function NCNList() {
   const navigate = useNavigate();
   // SBU 筛选选项：来自 NCN_Entry.SBU_Des 的 distinct 值
   const [sbuOptions, setSbuOptions] = useState<{ value: string; label: string }[]>([]);
+  // ME / QE / Owner 筛选选项
+  const [meOptions, setMeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [qeOptions, setQeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [ownerOptions, setOwnerOptions] = useState<{ value: string; label: string }[]>([]);
 
   useEffect(() => {
     getSBUDesOptions()
@@ -38,6 +42,35 @@ export default function NCNList() {
       .catch(() => {
         setSbuOptions([]);
       });
+
+    getMEEngineerOptions()
+      .then((response) => {
+        if (response.success && Array.isArray(response.data)) {
+          setMeOptions((response.data as string[]).map((v) => ({ value: v, label: v })));
+        }
+      })
+      .catch(() => setMeOptions([]));
+
+    getQEEngineerOptions()
+      .then((response) => {
+        if (response.success && Array.isArray(response.data)) {
+          setQeOptions((response.data as string[]).map((v) => ({ value: v, label: v })));
+        }
+      })
+      .catch(() => setQeOptions([]));
+
+    getOwnerOptions()
+      .then((response) => {
+        if (response.success && Array.isArray(response.data?.owners)) {
+          setOwnerOptions(
+            (response.data.owners as { lanId: string; name: string }[]).map((o) => ({
+              value: o.lanId,
+              label: `${o.name} (${o.lanId})`
+            }))
+          );
+        }
+      })
+      .catch(() => setOwnerOptions([]));
   }, []);
 
   const columns: ColumnsType<INCN_Entry> = [
@@ -298,6 +331,9 @@ export default function NCNList() {
       if (values.wo) params.customer = values.wo;
       if (values.partId) params.partId = values.partId;
       if (values.sbu) params.sbuDes = values.sbu;
+      if (values.meEngineer) params.meEngineer = values.meEngineer;
+      if (values.qualityEngineer) params.qualityEngineer = values.qualityEngineer;
+      if (values.owner) params.owner = values.owner;
       if (values.status) params.status = values.status;
       if (values.dateRange && values.dateRange.length === 2) {
         params.dateFrom = values.dateRange[0].format('YYYY-MM-DD');
@@ -417,6 +453,36 @@ export default function NCNList() {
               showSearch
               optionFilterProp="label"
               options={sbuOptions}
+            />
+          </Form.Item>
+          <Form.Item name="meEngineer" label="ME">
+            <Select
+              placeholder="Select ME"
+              style={{ width: 150 }}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={meOptions}
+            />
+          </Form.Item>
+          <Form.Item name="qualityEngineer" label="QE">
+            <Select
+              placeholder="Select QE"
+              style={{ width: 150 }}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={qeOptions}
+            />
+          </Form.Item>
+          <Form.Item name="owner" label="Owner">
+            <Select
+              placeholder="Select Owner"
+              style={{ width: 180 }}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={ownerOptions}
             />
           </Form.Item>
           <Form.Item name="status" label="Status">
