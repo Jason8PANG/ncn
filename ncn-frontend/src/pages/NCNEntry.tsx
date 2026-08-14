@@ -43,7 +43,6 @@ export default function NCNEntry() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [sbuOptions, setSbuOptions] = useState<{ value: string; label: string }[]>([]);
-  const [sbuDesOptions, setSbuDesOptions] = useState<{ value: string; label: string }[]>([]);
   const [finderName, setFinderName] = useState('');
   const [finderLookupMessage, setFinderLookupMessage] = useState('');
   const [lineLeaderName, setLineLeaderName] = useState('');
@@ -233,11 +232,7 @@ export default function NCNEntry() {
         setFinderLookupMessage('');
         setLineLeaderName(data.LineLeader || '');
         setLineLeaderLookupMessage('');
-        if (data.SBU) {
-          loadSBUDescriptionOptions(data.SBU);
-        } else {
-          setSbuDesOptions([]);
-        }
+        // SBU_Des 是只读文本框，直接回显数据库值，无需加载描述选项
         if (data.OwnerDept) {
           loadOwnerOptions(data.OwnerDept).then(() => {
             // 回填 Owner（编辑模式下，Owner 值需要与新的选项格式匹配）
@@ -344,9 +339,9 @@ export default function NCNEntry() {
 
         form.setFieldsValue(fields);
 
-        // 若 SBU 被填入且选项未加载，加载 SBU 描述选项
+        // 若 AI 填入 SBU，自动带出对应的 SBU_Des
         if (fields.SBU) {
-          loadSBUDescriptionOptions(fields.SBU);
+          applySBUDesBySBU(fields.SBU);
         }
 
         const applied: string[] = [];
@@ -460,41 +455,47 @@ export default function NCNEntry() {
     });
   };
 
-  const loadSBUDescriptionOptions = async (sbu: string) => {
+  // SBU 选中后自动带出 SBU_Des（历史最常用值，.NET 时代一致），并自动分配 ME Engineer
+  const applySBUDesBySBU = async (sbu: string) => {
     if (!sbu) {
-      setSbuDesOptions([]);
+      form.setFieldsValue({ SBU_Des: '' });
       return;
     }
 
+    let sbuDes = '';
+    // 1) 优先历史推荐值
     try {
-      const response = await getSBUDescriptionOptions(sbu);
-      if (response.success && Array.isArray(response.data)) {
-        const options = response.data.map(item => ({ value: item, label: item }));
-        setSbuDesOptions(options);
-
-        // 仅新建模式自动带出（编辑模式由 loadEntry 回显，不能覆盖）
-        if (!isEditMode) {
-          // 优先带出该 SBU 的历史最常用 SBU_Des（与 .NET 时代数据一致）
-          let filled = false;
-          try {
-            const recResp = await getSBUDesRecommend(sbu);
-            if (recResp.success && recResp.data) {
-              form.setFieldsValue({ SBU_Des: recResp.data });
-              filled = true;
-            }
-          } catch {
-            // 历史推荐失败则回退到单选项自动填
-          }
-          if (!filled && options.length === 1) {
-            form.setFieldsValue({ SBU_Des: options[0].value });
-          }
-        }
-      } else {
-        setSbuDesOptions([]);
+      const recResp = await getSBUDesRecommend(sbu);
+      if (recResp.success && recResp.data) {
+        sbuDes = recResp.data;
       }
-    } catch (error) {
-      setSbuDesOptions([]);
-      message.error('Failed to load SBU description options');
+    } catch {
+      // ignore
+    }
+
+    // 2) 无历史推荐时回退到匹配的唯一描述
+    if (!sbuDes) {
+      try {
+        const response = await getSBUDescriptionOptions(sbu);
+        if (response.success && Array.isArray(response.data) && response.data.length === 1) {
+          sbuDes = response.data[0];
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    form.setFieldsValue({ SBU_Des: sbuDes });
+
+    // 自动分配 ME Engineer（按 SBU_Des 历史记录推荐，仅当 ME 尚未选择）
+    if (sbuDes && !form.getFieldValue('ME_Engineer')) {
+      aiFillNew({ sbuDes }).then((resp) => {
+        const me = resp.data?.suggestions?.meEngineer;
+        if (me && !form.getFieldValue('ME_Engineer')) {
+          form.setFieldsValue({ ME_Engineer: me });
+          message.info(`ME Engineer auto-assigned: ${me}`);
+        }
+      }).catch(() => {});
     }
   };
 
@@ -795,29 +796,14 @@ export default function NCNEntry() {
                   placeholder="Select SBU"
                   onChange={(value) => {
                     form.setFieldsValue({ SBU_Des: undefined });
-                    loadSBUDescriptionOptions(value);
+                    applySBUDesBySBU(value);
                   }}
                 />
               </Form.Item>
             </Col>
             <Col span={6}>
               <Form.Item name="SBU_Des" label="SBU Description" rules={[{ required: true }]}>
-                <Select
-                  options={sbuDesOptions}
-                  placeholder="Select SBU Description"
-                  onChange={(value) => {
-                    // 自动分配 ME Engineer：按该 SBU_Des 的历史记录推荐（仅当 ME 尚未选择）
-                    if (value && !form.getFieldValue('ME_Engineer')) {
-                      aiFillNew({ sbuDes: value }).then((resp) => {
-                        const me = resp.data?.suggestions?.meEngineer;
-                        if (me && !form.getFieldValue('ME_Engineer')) {
-                          form.setFieldsValue({ ME_Engineer: me });
-                          message.info(`ME Engineer auto-assigned: ${me}`);
-                        }
-                      }).catch(() => {});
-                    }
-                  }}
-                />
+                <Input readOnly placeholder="Auto-filled from SBU selection" />
               </Form.Item>
             </Col>
             <Col span={6}>
