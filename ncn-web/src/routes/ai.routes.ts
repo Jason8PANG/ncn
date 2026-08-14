@@ -8,7 +8,8 @@ import {
   getHistoricalSuggestions,
   parseNewNCNText,
   suggestEditWithLLM,
-  hasLLM
+  hasLLM,
+  getPresetOptions
 } from '../utils/ai';
 
 const router = Router();
@@ -56,10 +57,11 @@ router.post('/fill-new', isAuthenticated, async (req: Request, res: Response) =>
       { type: QueryTypes.SELECT }
     );
 
-    // 3) LLM 解析用户输入（可选）
+    // 3) LLM 解析用户输入（可选）——基于数据库预设值选择
     let parsedFields: Record<string, string> | null = null;
-    if (text && String(text).trim()) {
-      parsedFields = await parseNewNCNText(String(text).trim(), String(sbuDes || ''));
+    if (text && String(text).trim() && hasLLM()) {
+      const preset = await getPresetOptions();
+      parsedFields = await parseNewNCNText(String(text).trim(), String(sbuDes || ''), preset);
     }
 
     res.json({
@@ -116,9 +118,11 @@ router.post('/suggest-edit', isAuthenticated, async (req: Request, res: Response
       { type: QueryTypes.SELECT }
     );
 
-    // LLM 结合语义与分布做最终推荐（可选）
+    // LLM 结合语义、预设值、历史分布做最终推荐（可选）
     let llmSuggestion: Record<string, string> | null = null;
     if (hasLLM()) {
+      // Deep_Analysis 预设依赖 Issue_Type
+      const preset = await getPresetOptions(String(issueType || ''));
       llmSuggestion = await suggestEditWithLLM({
         sbuDes: String(sbuDes || ''),
         partId: String(partId || ''),
@@ -128,7 +132,7 @@ router.post('/suggest-edit', isAuthenticated, async (req: Request, res: Response
           deepAnalysis: (deepDist as any[]).map((r: any) => String(r.Deep_Annlysis)),
           qes: (qeDist as any[]).map((r: any) => String(r.QualityEngineer))
         }
-      });
+      }, preset);
     }
 
     res.json({
