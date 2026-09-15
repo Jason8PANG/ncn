@@ -134,6 +134,21 @@ export default function NCNList() {
       width: 100
     },
     {
+      title: 'Defect Description',
+      dataIndex: 'Defect_Description',
+      key: 'Defect_Description',
+      width: 200,
+      ellipsis: {
+        showTitle: false
+      },
+      render: (text: string) =>
+        text ? (
+          <Tooltip title={text} placement="topLeft">
+            {text}
+          </Tooltip>
+        ) : null
+    },
+    {
       title: 'SBU',
       dataIndex: 'SBU_Des',
       key: 'SBU_Des',
@@ -178,6 +193,12 @@ export default function NCNList() {
       title: 'QE',
       dataIndex: 'QualityEngineer',
       key: 'QualityEngineer',
+      width: 110
+    },
+    {
+      title: 'Owner',
+      dataIndex: 'Owner',
+      key: 'Owner',
       width: 110
     },
     {
@@ -535,7 +556,7 @@ export default function NCNList() {
               setPageSize(size);
             }
           }}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1500 }}
           size="small"
         />
       </Card>

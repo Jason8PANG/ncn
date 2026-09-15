@@ -28,8 +28,9 @@ export const generateSerialNo = async (): Promise<ISerialNoResponse> => {
   return response.data;
 };
 
-export const lookupWO = async (wo: string): Promise<IApiResponse<any>> => {
-  const response = await api.get('/entry/wo-lookup', { params: { wo } });
+// 工单号查询：调 Infor CSI IDO SLJobs 自动带出 Item / Customer（站点由 SBU 决定）
+export const lookupWO = async (wo: string, sbu?: string): Promise<IApiResponse<{ item: string; customer: string; site: string }>> => {
+  const response = await api.get('/entry/wo-lookup', { params: { wo, sbu } });
   return response.data;
 };
 

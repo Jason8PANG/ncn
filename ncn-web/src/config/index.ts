@@ -52,6 +52,22 @@ export const config = {
     timeoutMs: parseInt(process.env.LLM_TIMEOUT_MS || '30000', 10)
   },
 
+  // Infor CSI IDO Request Service（工单号自动带出 Item/Customer）
+  csi: {
+    tenant: process.env.CSI_TENANT || 'NAIGROUP_PRD',
+    // Basic Auth（base64(client_id:client_secret)，与 csi_datawarehouse .env 中 CSI_AUTH_BASIC 一致）
+    authBasic: process.env.CSI_AUTH_BASIC || '',
+    username: process.env.CSI_USERNAME || '',
+    password: process.env.CSI_PASSWORD || '',
+    tokenUrl:
+      process.env.CSI_TOKEN_URL ||
+      `https://mingle-sso.inforcloudsuite.com:443/${process.env.CSI_TENANT || 'NAIGROUP_PRD'}/as/token.oauth2`,
+    idoBase:
+      process.env.CSI_IDO_BASE ||
+      `https://mingle-ionapi.inforcloudsuite.com/${process.env.CSI_TENANT || 'NAIGROUP_PRD'}/CSI/IDORequestService`,
+    timeoutMs: parseInt(process.env.CSI_TIMEOUT_MS || '20000', 10)
+  },
+
   jwt: {
     secret: process.env.JWT_SECRET || 'ncn-jwt-secret-change-in-production',
     expiresIn: process.env.JWT_EXPIRES_IN || '30d', // Cookie 有效期 30 天

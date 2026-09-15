@@ -19,7 +19,8 @@ import {
   getMEEngineerOptions,
   getQEEngineerOptions,
   getIssueTypeOptions,
-  getDeepAnalysisOptions
+  getDeepAnalysisOptions,
+  lookupWO
 } from '../services/entry';
 import { uploadFile, downloadFile, deleteAttachmentFile } from '../services/upload';
 import { aiFillNew, aiSuggestEdit, type IAiSuggestEditResponse } from '../services/ai';
@@ -65,6 +66,8 @@ export default function NCNEntry() {
   const [listening, setListening] = useState(false);
   const [editSuggestion, setEditSuggestion] = useState<IAiSuggestEditResponse['data'] | null>(null);
   const [editSuggestionVisible, setEditSuggestionVisible] = useState(false);
+  // WO 号查询 Infor（带出 Part ID / Customer）
+  const [woLoading, setWoLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -499,6 +502,38 @@ export default function NCNEntry() {
     }
   };
 
+  // WO 号输入后自动调 Infor CSI IDO 带出 Part ID / Customer（站点由 SBU 决定）
+  const handleWoLookup = async () => {
+    const wo = String(form.getFieldValue('WO') || '').trim();
+    if (!wo) return;
+    const sbu = String(form.getFieldValue('SBU') || '').trim();
+    if (!sbu) {
+      message.warning('请先选择 SBU（需根据 SBU 确定站点后才能查询工单）');
+      return;
+    }
+    setWoLoading(true);
+    try {
+      const resp = await lookupWO(wo, sbu);
+      if (resp.success && resp.data) {
+        const fields: Record<string, any> = {};
+        if (resp.data.item) fields.Part_ID = resp.data.item;
+        if (resp.data.customer) fields.Customer = resp.data.customer;
+        if (Object.keys(fields).length > 0) {
+          form.setFieldsValue(fields);
+          message.success(`Infor 带出：Part ID = ${resp.data.item || '-'}, Customer = ${resp.data.customer || '-'}（站点 ${resp.data.site}）`);
+        } else {
+          message.warning(`工单 ${wo} 查询成功，但 Item / Customer 为空`);
+        }
+      } else {
+        message.warning(resp.error || `工单 ${wo} 未找到`);
+      }
+    } catch (error: any) {
+      message.error(error?.response?.data?.error || '工单查询失败');
+    } finally {
+      setWoLoading(false);
+    }
+  };
+
   const handleGenerateSerialNo = async () => {
     await requestLatestSerialNo();
     message.success('Serial number generated');
@@ -832,8 +867,15 @@ export default function NCNEntry() {
 
           <Row gutter={16}>
             <Col span={6}>
-              <Form.Item name="WO" label="WO Number" rules={[{ required: true }]}>
-                <Input placeholder="WO Number" />
+              <Form.Item name="WO" label="WO Number" rules={[{ required: true }]} extra="输入工单号后自动从 Infor 带出 Part ID / Customer">
+                <Input
+                  placeholder="WO Number"
+                  onBlur={handleWoLookup}
+                  onPressEnter={(e) => {
+                    (e.target as HTMLInputElement).blur();
+                  }}
+                  suffix={woLoading ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>查询中...</Typography.Text> : undefined}
+                />
               </Form.Item>
             </Col>
             <Col span={6}>

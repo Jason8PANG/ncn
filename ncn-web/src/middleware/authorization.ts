@@ -56,8 +56,8 @@ const isMEEngineerOwner = (req: Request, entry: NCN_Entry): boolean => {
 
 export const canEditNCNEntry = (req: Request, entry: NCN_Entry): boolean => {
   if (entry.Status === 'Closed') return false;
-  // 允许 Admin、QE 工程师、责任人(Finder/Owner)、ME Engineer 编辑 NCN 内容
-  return isAdminRequest(req) || isQEOwner(req, entry) || isEntryOwner(req, entry) || isMEEngineerOwner(req, entry);
+  // 权限放开：任何登录用户都可编辑 NCN Entry（Closed 状态仍不可编辑）
+  return true;
 };
 
 export const canManageActionOnEntry = (req: Request, entry: NCN_Entry): boolean => {

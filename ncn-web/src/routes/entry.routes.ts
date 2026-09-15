@@ -8,6 +8,7 @@ import { sequelize } from '../models';
 import { QueryTypes } from 'sequelize';
 import { sendNewNCNNotification, sendNCNUpdateNotification } from '../utils/email';
 import { config } from '../config';
+import { fetchJobInfo, getSbuMongooseConfig } from '../utils/csi';
 
 const router = Router();
 
@@ -115,6 +116,32 @@ router.get('/serialno/new', isAuthenticated, async (req: Request, res: Response)
   } catch (error) {
     logger.error('Error generating serial number:', error);
     res.status(500).json({ error: 'Failed to generate serial number' });
+  }
+});
+
+// 工单号查询：调 Infor CSI IDO SLJobs，自动带出 Item 和 Customer（ue_GDL_Customer）
+// 站点由 SBU 决定：P2-Industrial → NAIGROUP_PRD_330，Penang-Industrial → NAIGROUP_PRD_410，其他 → NAIGROUP_PRD_310
+router.get('/wo-lookup', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const wo = String(req.query.wo || '').trim();
+    const sbu = String(req.query.sbu || '').trim();
+    if (!wo) {
+      return res.status(400).json({ error: 'wo is required' });
+    }
+    if (!sbu) {
+      return res.status(400).json({ error: 'sbu is required (select SBU first to determine the site)' });
+    }
+
+    const site = getSbuMongooseConfig(sbu);
+    const info = await fetchJobInfo(wo, sbu);
+    if (!info) {
+      return res.json({ success: false, error: `工单 ${wo} 在 ${site} 未找到（SLJobs 无 Suffix=0 记录）` });
+    }
+
+    res.json({ success: true, data: { item: info.item, customer: info.customer, site } });
+  } catch (error: any) {
+    logger.error('Error fetching WO info from CSI IDO:', error);
+    res.status(500).json({ error: error?.message || 'Failed to fetch WO info' });
   }
 });
 
