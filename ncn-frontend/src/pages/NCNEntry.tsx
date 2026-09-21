@@ -68,6 +68,8 @@ export default function NCNEntry() {
   const [editSuggestionVisible, setEditSuggestionVisible] = useState(false);
   // WO 号查询 Infor（带出 Part ID / Customer）
   const [woLoading, setWoLoading] = useState(false);
+  // 记录上一次由 SBU 变更“自动分配”的 ME，便于重选 SBU 时移除并重新分配（用户手动选的 ME 不动）
+  const [autoAssignedME, setAutoAssignedME] = useState('');
 
   useEffect(() => {
     if (id) {
@@ -460,6 +462,13 @@ export default function NCNEntry() {
 
   // SBU 选中后自动带出 SBU_Des（历史最常用值，.NET 时代一致），并自动分配 ME Engineer
   const applySBUDesBySBU = async (sbu: string) => {
+    // ① SBU 变更：先移除上一次自动分配的 ME（若用户已手动改成别人，则保留不动）
+    const currentME = String(form.getFieldValue('ME_Engineer') || '');
+    if (autoAssignedME && currentME === autoAssignedME) {
+      form.setFieldsValue({ ME_Engineer: undefined });
+    }
+    setAutoAssignedME('');
+
     if (!sbu) {
       form.setFieldsValue({ SBU_Des: '' });
       return;
@@ -490,15 +499,22 @@ export default function NCNEntry() {
 
     form.setFieldsValue({ SBU_Des: sbuDes });
 
-    // 自动分配 ME Engineer（按 SBU_Des 历史记录推荐，仅当 ME 尚未选择）
-    if (sbuDes && !form.getFieldValue('ME_Engineer')) {
-      aiFillNew({ sbuDes }).then((resp) => {
+    // ② 重新分配 ME Engineer（按 SBU_Des 历史推荐；后端已保证只在启用中的 ME 名单内推荐）
+    if (sbuDes) {
+      try {
+        const resp = await aiFillNew({ sbuDes });
         const me = resp.data?.suggestions?.meEngineer;
-        if (me && !form.getFieldValue('ME_Engineer')) {
+        const meNow = String(form.getFieldValue('ME_Engineer') || '');
+        if (me && !meNow) {
           form.setFieldsValue({ ME_Engineer: me });
+          setAutoAssignedME(me);
           message.info(`ME Engineer auto-assigned: ${me}`);
+        } else if (!me && !meNow) {
+          message.warning('未找到启用中的 ME Engineer 推荐，请手动选择');
         }
-      }).catch(() => {});
+      } catch {
+        // ignore
+      }
     }
   };
 

@@ -127,55 +127,90 @@ export const getHistoricalSuggestions = async (
     : '';
 
   try {
-    // ME Engineer 分布
+    // 历史数据里可能残留已停用/离职的人，推荐值必须落在 Code_Table 启用中的预设名单内
+    const preset = await getPresetOptions(issueType);
+    const activeME = new Set(preset.meEngineers.map(v => v.trim().toLowerCase()));
+    const activeQE = new Set(preset.qes.map(v => v.trim().toLowerCase()));
+    const activeIssue = new Set(preset.issueTypes.map(v => v.trim().toLowerCase()));
+    // Deep_Analysis：传了 issueType 就用该类别下的预设；没传则退化为全部启用中的描述
+    let deepAllow: string[] = preset.deepAnalysis;
+    if (!issueType) {
+      deepAllow = (await Code_Table.findAll({
+        where: { Code_Category: 'NCN_Issue_Type', Status: 'Active' },
+        attributes: ['Code_Description']
+      })).map((r: any) => String(r.Code_Description || '').trim()).filter(Boolean);
+    }
+    const activeDeep = new Set(deepAllow.map(v => v.trim().toLowerCase()));
+
+    // 从历史分布中挑第一个「在预设名单内」的值（预设为空时不推荐，避免填入无效值）
+    const pickActive = (rows: any[], field: string, allow: Set<string>): { value: string; count: number } => {
+      if (allow.size === 0) return { value: '', count: 0 };
+      for (const row of rows) {
+        const value = String(row?.[field] || '').trim();
+        if (value && allow.has(value.toLowerCase())) {
+          return { value, count: Number(row?.c || 0) };
+        }
+      }
+      return { value: '', count: 0 };
+    };
+
+    // ME Engineer 分布（取前 20 个候选，再筛出启用中的）
     const meRows = await sequelize.query(
-      `SELECT TOP 1 ME_Engineer, COUNT(*) AS c FROM dbo.NCN_Entry
+      `SELECT TOP 20 ME_Engineer, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE ME_Engineer IS NOT NULL AND LTRIM(RTRIM(ME_Engineer)) <> '' ${sbuWhere}
        GROUP BY ME_Engineer ORDER BY c DESC, MAX(ROWID) DESC`,
       { type: QueryTypes.SELECT }
     );
-    const meRow = (meRows as any[])[0];
+    const mePick = pickActive(meRows as any[], 'ME_Engineer', activeME);
+    if (mePick.value) {
+      const histTop = String((meRows as any[])[0]?.ME_Engineer || '').trim();
+      if (histTop && histTop.toLowerCase() !== mePick.value.toLowerCase()) {
+        logger.info(`[AI] ME 历史首选 "${histTop}" 不在启用名单内，改用启用中的 "${mePick.value}"`);
+      }
+    } else {
+      logger.info('[AI] 未找到启用中的 ME Engineer 历史推荐，本轮不预分配');
+    }
 
     // QE 分布
     const qeRows = await sequelize.query(
-      `SELECT TOP 1 QualityEngineer, COUNT(*) AS c FROM dbo.NCN_Entry
+      `SELECT TOP 20 QualityEngineer, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE QualityEngineer IS NOT NULL AND LTRIM(RTRIM(QualityEngineer)) <> '' ${sbuWhere}
        GROUP BY QualityEngineer ORDER BY c DESC, MAX(ROWID) DESC`,
       { type: QueryTypes.SELECT }
     );
-    const qeRow = (qeRows as any[])[0];
+    const qePick = pickActive(qeRows as any[], 'QualityEngineer', activeQE);
 
     // Issue Type 分布
     const issueRows = await sequelize.query(
-      `SELECT TOP 1 Issue_Type, COUNT(*) AS c FROM dbo.NCN_Entry
+      `SELECT TOP 20 Issue_Type, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE Issue_Type IS NOT NULL AND LTRIM(RTRIM(Issue_Type)) <> '' ${sbuWhere}
        GROUP BY Issue_Type ORDER BY c DESC, MAX(ROWID) DESC`,
       { type: QueryTypes.SELECT }
     );
-    const issueRow = (issueRows as any[])[0];
+    const issuePick = pickActive(issueRows as any[], 'Issue_Type', activeIssue);
 
     // Deep Analysis 分布（优先匹配 Issue_Type；否则按 SBU_Des）
     const deepWhere = issueType
       ? `AND [Issue_Type] = N'${String(issueType).replace(/'/g, "''")}'`
       : '';
     const deepRows = await sequelize.query(
-      `SELECT TOP 1 Deep_Annlysis, COUNT(*) AS c FROM dbo.NCN_Entry
+      `SELECT TOP 20 Deep_Annlysis, COUNT(*) AS c FROM dbo.NCN_Entry
        WHERE Deep_Annlysis IS NOT NULL AND LTRIM(RTRIM(Deep_Annlysis)) <> ''
          AND Issue_Type IS NOT NULL AND LTRIM(RTRIM(Issue_Type)) <> ''
          ${sbuWhere} ${deepWhere}
        GROUP BY Deep_Annlysis ORDER BY c DESC, MAX(ROWID) DESC`,
       { type: QueryTypes.SELECT }
     );
-    const deepRow = (deepRows as any[])[0];
+    const deepPick = pickActive(deepRows as any[], 'Deep_Annlysis', activeDeep);
 
     return {
-      meEngineer: meRow?.ME_Engineer || '',
-      qualityEngineer: qeRow?.QualityEngineer || '',
-      issueType: issueRow?.Issue_Type || '',
-      deepAnalysis: deepRow?.Deep_Annlysis || '',
-      meCount: Number(meRow?.c || 0),
-      qeCount: Number(qeRow?.c || 0),
-      issueCount: Number(issueRow?.c || 0)
+      meEngineer: mePick.value,
+      qualityEngineer: qePick.value,
+      issueType: issuePick.value,
+      deepAnalysis: deepPick.value,
+      meCount: mePick.count,
+      qeCount: qePick.count,
+      issueCount: issuePick.count
     };
   } catch (err) {
     logger.error('[AI] historical stats error:', err);

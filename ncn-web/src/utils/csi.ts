@@ -1,4 +1,6 @@
+import fs from 'fs';
 import https from 'https';
+import path from 'path';
 import { config } from '../config';
 import { logger } from './logger';
 
@@ -16,19 +18,60 @@ import { logger } from './logger';
 
 const agent = new https.Agent({ rejectUnauthorized: false }); // 与 csi_datawarehouse Python 客户端 verify=False 一致
 
+/**
+ * dotenv 会把「未加引号的值」中 '#' 之后的内容当成行内注释丢掉。
+ * CSI_USERNAME 形如 `NAIGROUP_PRD#xxxx...`，本地开发时会被截断成 `NAIGROUP_PRD`，
+ * 导致 Infor 返回 400 invalid_grant / Service Account not authorized。
+ * （docker compose 不做这种截断，所以容器内不受影响。）
+ * 这里回读 .env 原文兜底：仅当解析值确实是原文的前缀且原文含 '#' 时才用原文。
+ */
+const resolveEnvValue = (key: string, parsed?: string): string => {
+  const value = parsed || '';
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (!fs.existsSync(envPath)) return value;
+    const raw = fs.readFileSync(envPath, 'utf8');
+    const matched = new RegExp(`^\\s*${key}\\s*=\\s*(.*)$`, 'm').exec(raw);
+    if (!matched) return value;
+    let rawVal = matched[1].trim();
+    if (
+      (rawVal.startsWith('"') && rawVal.endsWith('"')) ||
+      (rawVal.startsWith("'") && rawVal.endsWith("'"))
+    ) {
+      rawVal = rawVal.slice(1, -1);
+    }
+    if (rawVal.includes('#') && rawVal.startsWith(value) && rawVal.length > value.length) {
+      logger.warn(`[CSI] .env 中的 ${key} 未加引号，'#' 之后被 dotenv 截断，已按原文取值（建议改成 ${key}="..."）`);
+      return rawVal;
+    }
+    return value;
+  } catch {
+    return value;
+  }
+};
+
+const credentials = () => ({
+  authBasic: resolveEnvValue('CSI_AUTH_BASIC', config.csi.authBasic),
+  username: resolveEnvValue('CSI_USERNAME', config.csi.username),
+  password: resolveEnvValue('CSI_PASSWORD', config.csi.password)
+});
+
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
 let tokenPromise: Promise<string> | null = null;
 
-const isCsiConfigured = (): boolean =>
-  Boolean(config.csi.authBasic && config.csi.username && config.csi.password);
+const isCsiConfigured = (): boolean => {
+  const { authBasic, username, password } = credentials();
+  return Boolean(authBasic && username && password);
+};
 
 const fetchToken = (): Promise<string> => {
+  const { authBasic, username, password } = credentials();
   return new Promise((resolve, reject) => {
     const postData = new URLSearchParams({
       grant_type: 'password',
-      username: config.csi.username,
-      password: config.csi.password
+      username,
+      password
     }).toString();
 
     const req = https.request(
@@ -36,7 +79,7 @@ const fetchToken = (): Promise<string> => {
       {
         method: 'POST',
         headers: {
-          Authorization: `Basic ${config.csi.authBasic}`,
+          Authorization: `Basic ${authBasic}`,
           'Content-Type': 'application/x-www-form-urlencoded',
           'Content-Length': Buffer.byteLength(postData)
         },
