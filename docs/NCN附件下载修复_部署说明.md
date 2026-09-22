@@ -121,9 +121,14 @@ chcon -R -t httpd_sys_content_t /var/www/ncn
 
 ---
 
-# 五、另：P0 安全修复（JWT_SECRET）— 建议单独安排一次
+# 五、另：P0 安全修复（JWT_SECRET）— ✅ 已执行
 
-**这个不在本次代码提交里，需要改服务器配置。** 请确认要不要做。
+> **状态：已在 2026-09-22 完成并验证。** 容器内已拿到 64 位密钥
+> `JWT_SECRET=fe2b27f8...969df0`，用旧的公开默认密钥自签 JWT 请求
+> `/api/entry/owner/options` 返回 **401**（修复前是可正常通过的 200）。
+> 下面保留完整步骤备查。
+
+**这个不在本次代码提交里，需要改服务器配置。**
 
 ## 问题
 
@@ -203,3 +208,46 @@ curl -s http://127.0.0.1:7000/api/health
 | `/root/ncn/ncn-frontend/` 下有 8 个垃圾文件 | `-H`、`-d`、`Accept:`、`Content-Length:`、`Content-Type:`、`Host:`、`POST`、`User-Agent:` —— 之前某次 curl 命令写错产生的。可 `cd /root/ncn/ncn-frontend && rm -f -- -H -d 'Accept:' 'Content-Length:' 'Content-Type:' 'Host:' 'POST' 'User-Agent:'` |
 | `NCN2411078` 附件缺失 | DB 记的文件名 `NCN_NCN2411078.5QAC00005 8D ...report(Rev 11)` 在共享盘上不存在（历史附件原始名无合法扩展名）。需手工重传附件 |
 | `docker-compose.yml` 里的 `ncn-frontend` 容器 | 定义了但从未运行，线上实际由宿主机 nginx（`/var/www/ncn`）提供服务 → 容易误判部署方式，建议清理或加注释 |
+
+---
+
+# 七、变更记录（同一套部署流程）
+
+后续前端小改动沿用**第二节**的发布步骤（`npm run build` → 覆盖 `/var/www/ncn` → `chown`/`chcon`/`restorecon`）。
+
+| commit | 变更 |
+|---|---|
+| `a0e5017` | NCN List「Att」列回形针改为可点击下载 |
+| `2fd98eb` | `docker-compose.yml` 补传 `JWT_SECRET` |
+| 本次 | **Owner 显示姓名**（见下） |
+
+## 本次：Owner 显示姓名
+
+**问题**：NCN 编辑页「Owner / 责任人」下拉的标签是 `lanId - 姓名`（如 `huayun.zhou - 周华云`），
+账号在前、字符串长，在 `Col span={6}` 的窄字段里被截断。NCN List 的 Owner 列也是直接显示账号。
+
+**改动**（`ncn-frontend/src/pages/NCNEntry.tsx`、`NCNList.tsx`）：
+
+| 位置 | 改前 | 改后 |
+|---|---|---|
+| NCNEntry Owner 下拉 label | `${lanId} - ${name}` | **`姓名`**（姓名为空时退回账号） |
+| NCNEntry Owner 下拉搜索 | 只能按账号 | **姓名或账号都能搜**（`filterOption`） |
+| NCNEntry Owner 下拉字号 | 14px | **13px**（姓名较长时也能完整显示） |
+| NCNEntry Owner 下拉 disabled | `form.getFieldValue('OwnerDept')`（render 期取值，不响应式） | `Form.useWatch('OwnerDept', form)`（响应式） |
+| NCNEntry Owner 回填 | `ownerOptions.find(o => o.label.startsWith(lanId))` —— 读的是**旧 state**，且依赖 label 文案 | 用 `loadOwnerOptions` **返回值**按 `value` 精确匹配，大小写不敏感 |
+| NCN List Owner 列 | 直接显示账号 `huayun.zhou` | 显示**姓名**，映射不到时回退显示账号 |
+
+**数据来源**：`GET /api/entry/owner/options` → 已返回 `{ lanId, name }`，**无需改后端**。
+`NCN_Entry.Owner` 里存的仍是 lanId，**入库值不变**，只是显示层换成姓名。
+
+**已知边界**：
+- 该接口只返回**在职**员工（`Leave_Date IS NULL`）。若某条历史 NCN 的责任人已离职，
+  下拉里找不到 → 编辑页保留原 lanId 显示（不会清空数据），列表里回退显示账号。
+- 同名不同人极罕见；如需区分，下拉里搜索账号即可精确定位。
+
+**验证**：`tsc --noEmit` 通过，产物 `index-DU6wG2FO.js` 中确认
+`label: name || lanId`、`filterOption`、`fontSize:13`、`useWatch` 均已生效。
+
+**未改动**：`IssueLog.tsx` 的「Action Owner」下拉**仍是** `${lanId} - ${name}`（写法相同）。
+如需一并改成姓名，说一声即可。
+

@@ -43,6 +43,9 @@ export default function NCNEntry() {
   const isEditMode = !!id;
   const navigate = useNavigate();
   const [form] = Form.useForm();
+  // 响应式读取 Owner Dept：原先在 render 里写 form.getFieldValue('OwnerDept')
+  // 不会随表单变化触发重渲染，导致 Owner 下拉的 disabled 状态不跟随更新
+  const ownerDeptValue = Form.useWatch('OwnerDept', form);
   const [loading, setLoading] = useState(false);
   const [sbuOptions, setSbuOptions] = useState<{ value: string; label: string }[]>([]);
   const [finderName, setFinderName] = useState('');
@@ -51,7 +54,8 @@ export default function NCNEntry() {
   const [lineLeaderLookupMessage, setLineLeaderLookupMessage] = useState('');
   const [ownerDeptOptions, setOwnerDeptOptions] = useState<{ value: string; label: string }[]>([]);
   const [ownerDeptLoading, setOwnerDeptLoading] = useState(false);
-  const [ownerOptions, setOwnerOptions] = useState<{ value: string; label: string }[]>([]);
+  // Owner 下拉：value=lanId（入库值），label=姓名（显示），lanId 保留供搜索
+  const [ownerOptions, setOwnerOptions] = useState<{ value: string; label: string; lanId?: string }[]>([]);
   const [ownerLoading, setOwnerLoading] = useState(false);
   const [meOptions, setMeOptions] = useState<{ value: string; label: string }[]>([]);
   const [qeOptions, setQeOptions] = useState<{ value: string; label: string }[]>([]);
@@ -118,22 +122,41 @@ export default function NCNEntry() {
     }
   };
 
-  const loadOwnerOptions = async (dept: string) => {
+  /**
+   * 加载 Owner / 责任人 下拉选项
+   *
+   * label 显示「姓名」（如 周华云 / Noor Emelia），不再显示账号。
+   * lanId 仍保留在 value（入库值）和 lanId 字段里，供搜索与写库使用
+   * —— NCN_Entry.Owner 存的是 lanId，不能改。
+   *
+   * @returns 本次加载的选项数组。调用方必须用返回值做匹配，
+   *          不要读 ownerOptions state（setState 异步，闭包里拿到的是旧值）。
+   */
+  const loadOwnerOptions = async (
+    dept: string
+  ): Promise<{ value: string; label: string; lanId: string }[]> => {
     setOwnerLoading(true);
     try {
       const response = await getOwnerOptions(dept);
       if (response.success && response.data?.owners) {
-        const options = response.data.owners.map((o: any) => ({
-          value: o.lanId,
-          label: `${o.lanId} - ${o.name}`
-        }));
+        const options = response.data.owners.map((o: any) => {
+          const name = String(o.name || '').trim();
+          const lanId = String(o.lanId || '').trim();
+          return {
+            value: lanId,
+            label: name || lanId, // 姓名优先；姓名为空时退回账号，避免下拉出现空白项
+            lanId
+          };
+        });
         setOwnerOptions(options);
-      } else {
-        setOwnerOptions([]);
+        return options;
       }
+      setOwnerOptions([]);
+      return [];
     } catch (error) {
       setOwnerOptions([]);
       message.error('Failed to load Owner options');
+      return [];
     } finally {
       setOwnerLoading(false);
     }
@@ -240,14 +263,17 @@ export default function NCNEntry() {
         setLineLeaderLookupMessage('');
         // SBU_Des 是只读文本框，直接回显数据库值，无需加载描述选项
         if (data.OwnerDept) {
-          loadOwnerOptions(data.OwnerDept).then(() => {
-            // 回填 Owner（编辑模式下，Owner 值需要与新的选项格式匹配）
-            if (data.Owner) {
-              const ownerOpt = ownerOptions.find(o => o.label.startsWith(data.Owner ?? ''));
-              if (ownerOpt) {
-                form.setFieldsValue({ Owner: ownerOpt.value });
-              }
-            }
+          // 用 loadOwnerOptions 的返回值匹配，不要读 ownerOptions state
+          //（setState 异步，闭包里的 ownerOptions 还是上一轮的值 → 匹配不到）
+          void loadOwnerOptions(data.OwnerDept).then((opts) => {
+            if (!data.Owner) return;
+            // 按 value(=lanId) 精确匹配，大小写不敏感。
+            // label 已经改成姓名，不能再靠 label.startsWith(lanId) 匹配。
+            const target = String(data.Owner).trim().toLowerCase();
+            const hit = opts.find((o) => String(o.value).trim().toLowerCase() === target);
+            // 未命中（如该责任人已离职、不在在职名单里）时保留原值，
+            // Select 会直接显示 lanId 原文，避免把已有数据清空
+            form.setFieldsValue({ Owner: hit ? hit.value : data.Owner });
           });
         }
         if (data.Issue_Type) {
@@ -956,7 +982,21 @@ export default function NCNEntry() {
                   placeholder="Select Owner"
                   options={ownerOptions}
                   loading={ownerLoading}
-                  disabled={!form.getFieldValue('OwnerDept')}
+                  disabled={!ownerDeptValue}
+                  showSearch
+                  allowClear
+                  // label 是姓名，value/lanId 是账号 → 两种都能搜
+                  filterOption={(input, option) => {
+                    const kw = String(input || '').trim().toLowerCase();
+                    if (!kw) return true;
+                    const o = option as any;
+                    return (
+                      String(o?.label ?? '').toLowerCase().includes(kw) ||
+                      String(o?.lanId ?? o?.value ?? '').toLowerCase().includes(kw)
+                    );
+                  }}
+                  // 姓名较长时字号略小，保证在字段宽度内完整显示
+                  style={{ fontSize: 13 }}
                 />
               </Form.Item>
             </Col>

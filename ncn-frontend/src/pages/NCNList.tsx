@@ -32,6 +32,8 @@ export default function NCNList() {
   const [meOptions, setMeOptions] = useState<{ value: string; label: string }[]>([]);
   const [qeOptions, setQeOptions] = useState<{ value: string; label: string }[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<{ value: string; label: string }[]>([]);
+  // Owner 账号(lanId) → 姓名 映射，供列表 Owner 列显示姓名（找不到则回退显示账号）
+  const [ownerNameMap, setOwnerNameMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     getSBUDesOptions()
@@ -70,11 +72,22 @@ export default function NCNList() {
     getOwnerOptions()
       .then((response) => {
         if (response.success && Array.isArray(response.data?.owners)) {
+          const list = (response.data.owners as { lanId: string; name: string }[]) || [];
+          // 筛选下拉：label 保持「姓名 (账号)」，便于在宽下拉里区分同名
           setOwnerOptions(
-            (response.data.owners as { lanId: string; name: string }[]).map((o) => ({
+            list.map((o) => ({
               value: o.lanId,
               label: `${o.name} (${o.lanId})`
             }))
+          );
+          // Owner 列渲染用：账号 → 姓名（key 统一小写，匹配大小写不一致的历史数据）
+          setOwnerNameMap(
+            list.reduce<Record<string, string>>((acc, o) => {
+              const lanId = String(o.lanId || '').trim().toLowerCase();
+              const name = String(o.name || '').trim();
+              if (lanId && name) acc[lanId] = name;
+              return acc;
+            }, {})
           );
         }
       })
@@ -209,7 +222,13 @@ export default function NCNList() {
       title: 'Owner',
       dataIndex: 'Owner',
       key: 'Owner',
-      width: 110
+      width: 110,
+      // 显示姓名（如 周华云 / Noor Emelia），映射不到时回退显示账号
+      render: (owner: string) => {
+        if (!owner) return null;
+        const name = ownerNameMap[String(owner).trim().toLowerCase()];
+        return name || owner;
+      }
     },
     {
       title: 'Action',
