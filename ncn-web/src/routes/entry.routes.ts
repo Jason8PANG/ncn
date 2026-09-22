@@ -138,7 +138,7 @@ router.get('/wo-lookup', isAuthenticated, async (req: Request, res: Response) =>
       const parsed = parseJobInput(wo);
       return res.json({
         success: false,
-        error: `工单 ${wo} 在 ${site} 未找到（已按 Job=${parsed.job}, Suffix=${parsed.suffix} 查询）`
+        error: `Work order ${wo} not found in ${site} (queried Job=${parsed.job}, Suffix=${parsed.suffix})`
       });
     }
 

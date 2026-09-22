@@ -508,9 +508,9 @@ export default function NCNEntry() {
         if (me && !meNow) {
           form.setFieldsValue({ ME_Engineer: me });
           setAutoAssignedME(me);
-          message.info(`已自动分配 ME 工程师：${me}`);
+          message.info(`ME Engineer auto-assigned: ${me}`);
         } else if (!me && !meNow) {
-          message.warning('未找到启用中的 ME 工程师推荐，请手动选择');
+          message.warning('No active ME Engineer recommendation found, please select manually');
         }
       } catch {
         // ignore
@@ -531,7 +531,7 @@ export default function NCNEntry() {
     if (!wo) return;
     const sbu = String(form.getFieldValue('SBU') || '').trim();
     if (!sbu) {
-      message.warning('请先选择 SBU（需根据 SBU 确定站点后才能查询工单）');
+      message.warning('Please select SBU first (site is determined by SBU)');
       return;
     }
     setWoLoading(true);
@@ -544,13 +544,13 @@ export default function NCNEntry() {
         if (Object.keys(fields).length > 0) {
           form.setFieldsValue(fields);
         } else {
-          message.warning(`工单 ${wo} 查询成功，但料号与客户为空`);
+          message.warning(`Work order ${wo} found, but Part ID / Customer is empty`);
         }
       } else {
-        message.warning(resp.error || `工单 ${wo} 未找到`);
+        message.warning(resp.error || `Work order ${wo} not found`);
       }
     } catch (error: any) {
-      message.error(error?.response?.data?.error || '工单查询失败');
+      message.error(error?.response?.data?.error || 'Failed to look up work order');
     } finally {
       setWoLoading(false);
     }
@@ -897,7 +897,7 @@ export default function NCNEntry() {
                   onPressEnter={(e) => {
                     (e.target as HTMLInputElement).blur();
                   }}
-                  suffix={woLoading ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>查询中...</Typography.Text> : undefined}
+                  suffix={woLoading ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>Loading...</Typography.Text> : undefined}
                 />
               </Form.Item>
             </Col>
