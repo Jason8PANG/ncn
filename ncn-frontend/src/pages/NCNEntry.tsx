@@ -684,12 +684,12 @@ export default function NCNEntry() {
         form.setFieldsValue({ Finder: staffName });
       } else {
         setFinderName('');
-        setFinderLookupMessage('此员工不存在');
+        setFinderLookupMessage('Employee not found');
         form.setFieldsValue({ Finder: '' });
       }
     } catch (error) {
       setFinderName('');
-      setFinderLookupMessage('此员工不存在');
+      setFinderLookupMessage('Employee not found');
       form.setFieldsValue({ Finder: '' });
     }
   };
@@ -714,12 +714,12 @@ export default function NCNEntry() {
         form.setFieldsValue({ LineLeader: staffName });
       } else {
         setLineLeaderName('');
-        setLineLeaderLookupMessage('此员工不存在');
+        setLineLeaderLookupMessage('Employee not found');
         form.setFieldsValue({ LineLeader: '' });
       }
     } catch (error) {
       setLineLeaderName('');
-      setLineLeaderLookupMessage('此员工不存在');
+      setLineLeaderLookupMessage('Employee not found');
       form.setFieldsValue({ LineLeader: '' });
     }
   };
@@ -879,7 +879,7 @@ export default function NCNEntry() {
                 <Input placeholder="Input employee ID" onBlur={handleFinderEmpIdBlur} />
               </Form.Item>
               <Typography.Text type={finderLookupMessage ? 'danger' : undefined}>
-                {finderLookupMessage || (finderName ? `员工姓名：${finderName}` : '员工姓名：')}
+                {finderLookupMessage || (finderName ? `Employee Name: ${finderName}` : 'Employee Name: ')}
               </Typography.Text>
               <Form.Item name="Finder" hidden>
                 <Input />
@@ -889,7 +889,7 @@ export default function NCNEntry() {
 
           <Row gutter={16}>
             <Col span={6}>
-              <Form.Item name="WO" label="WO Number" rules={[{ required: true }]} extra="输入工单号后自动带出料号与客户名称">
+              <Form.Item name="WO" label="WO Number" rules={[{ required: true }]} extra="Part ID and Customer are auto-filled from the WO number">
                 <Input
                   placeholder="WO Number"
                   onChange={(e) => handleWoChange(e.target.value)}
@@ -1025,7 +1025,7 @@ export default function NCNEntry() {
                     <Input placeholder="Input employee ID" onBlur={handleLineLeaderEmpIdBlur} />
                   </Form.Item>
                   <Typography.Text type={lineLeaderLookupMessage ? 'danger' : undefined}>
-                    {lineLeaderLookupMessage || (lineLeaderName ? `员工姓名：${lineLeaderName}` : '员工姓名：')}
+                    {lineLeaderLookupMessage || (lineLeaderName ? `Employee Name: ${lineLeaderName}` : 'Employee Name: ')}
                   </Typography.Text>
                   <Form.Item name="LineLeader" hidden>
                     <Input />
