@@ -7,6 +7,7 @@ import {
   WarningOutlined
 } from '@ant-design/icons';
 import { Bar, Pie, Line } from '@ant-design/charts';
+import dayjs from 'dayjs';
 import { api } from '../utils/request';
 
 const { Title } = Typography;
@@ -272,6 +273,14 @@ export default function NCNKanban() {
       width: 140,
     },
     {
+      // 与 NCN List 的 Finder Date 列保持同样的格式化口径
+      title: 'Finder Date',
+      dataIndex: 'Finder_Date',
+      key: 'Finder_Date',
+      width: 110,
+      render: (date: string) => (date ? dayjs(date).format('YYYY-MM-DD') : '-')
+    },
+    {
       title: 'SBU',
       dataIndex: 'SBU',
       key: 'SBU',
@@ -400,7 +409,8 @@ export default function NCNKanban() {
           rowKey="ROWID"
           pagination={false}
           size="small"
-          scroll={{ x: 800 }}
+          // 固定宽列合计 140+110+100+120+100=570，留 260 给 Defect Description（无固定宽）
+          scroll={{ x: 830 }}
         />
       </Card>
     </div>

@@ -366,6 +366,18 @@ const ncnIdsWithAction = new Set(actionRows.map(r => Number(r.NCN_ID)));
 `pagination` 的 `showSizeChanger: true` 保持不变，用户仍可手动切 10 / 20 / 50 / 100
 （antd 默认 `pageSizeOptions` 就含这四档）。
 
+### 7. NCN Kanban「This Week's New NCN」新增 Finder Date 列
+
+`NCNKanban.tsx`：
+
+- `recentColumns` 在 **Serial No 之后**插入 `Finder Date`（`dataIndex: 'Finder_Date'`，宽 110），
+  格式化口径与 NCN List 一致：`date ? dayjs(date).format('YYYY-MM-DD') : '-'`
+- 新增 `import dayjs from 'dayjs'`（原先该文件没有引入）
+- 表格 `scroll` 由 `{ x: 800 }` 调到 `{ x: 830 }`
+
+列顺序变为：`Serial No | Finder Date | SBU | Customer | Status | Defect Description`。
+
+
 
 
 
