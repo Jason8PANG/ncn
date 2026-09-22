@@ -22,7 +22,8 @@ import {
   getDeepAnalysisOptions,
   lookupWO
 } from '../services/entry';
-import { uploadFile, downloadFile, deleteAttachmentFile } from '../services/upload';
+import { uploadFile, deleteAttachmentFile } from '../services/upload';
+import { downloadAttachment, extractFileNameFromPath } from '../utils/attachment';
 import { aiFillNew, aiSuggestEdit, type IAiSuggestEditResponse } from '../services/ai';
 import type { INCN_Entry } from '../types';
 
@@ -408,27 +409,9 @@ export default function NCNEntry() {
     message.success('AI suggestions applied');
   };
 
-  // 从共享路径提取文件名（如 \\suzvfile02\TaskManager\NCN_NCN2608011.jpg → NCN_NCN2608011.jpg）
-  const extractFileNameFromPath = (filePath: string): string => {
-    const normalized = String(filePath || '').replace(/\\/g, '/');
-    return normalized.split('/').pop() || normalized;
-  };
-
-  // 下载已有附件（传统方案：按 filePath 从共享目录下载）
-  const handleDownloadAttachment = async (filePath: string) => {
-    try {
-      const blob = await downloadFile(filePath);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = extractFileNameFromPath(filePath);
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch {
-      message.error('Failed to download attachment');
-    }
+  // 附件文件名提取与下载统一走 utils/attachment（与 NCNList 共用同一实现）
+  const handleDownloadAttachment = (filePath: string) => {
+    void downloadAttachment(filePath);
   };
 
   // 删除已有附件（传统方案：删除共享目录文件 + 清空 FilePath）

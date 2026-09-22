@@ -9,6 +9,7 @@ import { authState } from '../state/auth';
 import { queryNCNs } from '../services/ncn';
 import { closeNCNEntry, deleteNCNEntry, reopenNCNEntry, getSBUDesOptions, getMEEngineerOptions, getQEEngineerOptions, getOwnerOptions } from '../services/entry';
 import { Modal, message } from 'antd';
+import { downloadAttachment } from '../utils/attachment';
 import type { INCN_Entry, INCNQueryParams } from '../types';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
@@ -84,12 +85,21 @@ export default function NCNList() {
     {
       title: 'Att',
       key: 'hasAttachment',
-      width: 45,
+      width: 55,
       align: 'center' as const,
       render: (_: any, record: INCN_Entry) =>
         record.FilePath ? (
-          <Tooltip title="Has attachment">
-            <PaperClipOutlined style={{ color: '#507CD1' }} />
+          <Tooltip title="Download attachment">
+            <Button
+              type="link"
+              size="small"
+              style={{ padding: 0 }}
+              icon={<PaperClipOutlined style={{ color: '#507CD1' }} />}
+              onClick={(e) => {
+                e.stopPropagation();
+                void downloadAttachment(record.FilePath as string);
+              }}
+            />
           </Tooltip>
         ) : null
     },
