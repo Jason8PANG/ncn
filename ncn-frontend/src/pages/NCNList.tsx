@@ -246,7 +246,9 @@ export default function NCNList() {
       title: 'SBU',
       dataIndex: 'SBU_Des',
       key: 'SBU_Des',
-      width: 150
+      // 实际取值最长 12 字符（Penang Plant / Medical-HMLV），93% 的行 ≤6 字符，
+      // 120 够用且比原来的 150 紧凑
+      width: 120
     },
     {
       title: 'Finder',

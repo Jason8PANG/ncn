@@ -339,5 +339,26 @@ const ncnIdsWithAction = new Set(actionRows.map(r => Number(r.NCN_ID)));
 > 没做持久化（没往 localStorage/sessionStorage 存折叠状态）。
 > 如果需要「记住上次展开/收起」，说一声。
 
+### 5. NCN List 的 SBU 列宽 150 → 120
+
+`NCNList.tsx` 的 SBU 列（`dataIndex: 'SBU_Des'`）宽度由 150 收到 **120**。
+
+依据（实测 `NCN_Entry.SBU_Des` 取值）：
+
+| 取值 | 行数 | 字符数 |
+|---|---|---|
+| SBU1 | 9987 | 4 |
+| SBU2 | 1625 | 4 |
+| Penang Plant | 872 | 12 |
+| PLANT2 | 624 | 6 |
+| Medical-HMLV | 5 | 12 |
+| Industrial | 4 | 10 |
+
+最长 12 字符，93% 的行 ≤6 字符 → 120 够用，且不再留大片空白。
+
+> 未对 SBU 列加 `ellipsis`。如果现场发现 `Penang Plant` 偶尔被截断，可
+> 调回 130 或加 `ellipsis: { showTitle: false }` + Tooltip（同 Defect Description 列写法）。
+
+
 
 
