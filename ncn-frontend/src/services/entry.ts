@@ -29,7 +29,11 @@ export const generateSerialNo = async (): Promise<ISerialNoResponse> => {
 };
 
 // 工单号查询：调 Infor CSI IDO SLJobs 自动带出 Item / Customer（站点由 SBU 决定）
-export const lookupWO = async (wo: string, sbu?: string): Promise<IApiResponse<{ item: string; customer: string; site: string }>> => {
+// 工单号支持 J000035479 或 J000000112-0000（后者按 Job + Suffix 解析）
+export const lookupWO = async (
+  wo: string,
+  sbu?: string
+): Promise<IApiResponse<{ item: string; customer: string; site: string; job: string; suffix: number }>> => {
   const response = await api.get('/entry/wo-lookup', { params: { wo, sbu } });
   return response.data;
 };

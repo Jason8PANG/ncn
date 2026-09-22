@@ -8,7 +8,7 @@ import { sequelize } from '../models';
 import { QueryTypes } from 'sequelize';
 import { sendNewNCNNotification, sendNCNUpdateNotification } from '../utils/email';
 import { config } from '../config';
-import { fetchJobInfo, getSbuMongooseConfig } from '../utils/csi';
+import { fetchJobInfo, getSbuMongooseConfig, parseJobInput } from '../utils/csi';
 
 const router = Router();
 
@@ -135,10 +135,23 @@ router.get('/wo-lookup', isAuthenticated, async (req: Request, res: Response) =>
     const site = getSbuMongooseConfig(sbu);
     const info = await fetchJobInfo(wo, sbu);
     if (!info) {
-      return res.json({ success: false, error: `工单 ${wo} 在 ${site} 未找到（SLJobs 无 Suffix=0 记录）` });
+      const parsed = parseJobInput(wo);
+      return res.json({
+        success: false,
+        error: `工单 ${wo} 在 ${site} 未找到（已按 Job=${parsed.job}, Suffix=${parsed.suffix} 查询）`
+      });
     }
 
-    res.json({ success: true, data: { item: info.item, customer: info.customer, site } });
+    res.json({
+      success: true,
+      data: {
+        item: info.item,
+        customer: info.customer,
+        site,
+        job: info.job,
+        suffix: info.suffix
+      }
+    });
   } catch (error: any) {
     logger.error('Error fetching WO info from CSI IDO:', error);
     res.status(500).json({ error: error?.message || 'Failed to fetch WO info' });

@@ -11,26 +11,29 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-import { fetchJobInfo, getSbuMongooseConfig } from '../src/utils/csi';
+import { fetchJobInfo, getSbuMongooseConfig, parseJobInput } from '../src/utils/csi';
 
-const JOBS_BY_SBU: { sbu: string; job: string }[] = (() => {
-  const job = process.argv[2] || 'J000035479';
-  return [
-    { sbu: 'P2-Industrial', job },
-    { sbu: 'Penang-Industrial', job },
-    { sbu: '(其他)', job }
-  ];
-})();
+const jobArg = process.argv[2] || 'J000035479';
+const JOBS_BY_SBU: { sbu: string; job: string }[] = [
+  { sbu: 'P2-Industrial', job: jobArg },
+  { sbu: 'Penang-Industrial', job: jobArg },
+  { sbu: '(其他)', job: jobArg }
+];
 
 (async () => {
-  console.log('== CSI 诊断开始 ==');
+  const parsed = parseJobInput(jobArg);
+  console.log(`== CSI 诊断开始：输入 ${jobArg} → Job=${parsed.job}, Suffix=${parsed.suffix} ==`);
   for (const { sbu, job } of JOBS_BY_SBU) {
     const site = getSbuMongooseConfig(sbu);
     try {
       const info = await fetchJobInfo(job, sbu);
-      console.log(`[${sbu}] site=${site} job=${job} -> ${info ? JSON.stringify(info) : '未找到记录'}`);
+      if (info) {
+        console.log(`[${sbu}] site=${site} → 命中 Job=${info.job} Suffix=${info.suffix} Item=${info.item} Customer=${info.customer}`);
+      } else {
+        console.log(`[${sbu}] site=${site} → 未找到记录`);
+      }
     } catch (error: any) {
-      console.log(`[${sbu}] site=${site} job=${job} -> ERROR: ${error?.message}`);
+      console.log(`[${sbu}] site=${site} → ERROR: ${error?.message}`);
     }
   }
   console.log('== 诊断结束 ==');

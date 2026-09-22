@@ -518,6 +518,13 @@ export default function NCNEntry() {
     }
   };
 
+  // WO 号被清空时，同步清掉之前从 Infor 带出的 Part ID / Customer，避免残留旧值
+  const handleWoChange = (value: string) => {
+    if (!String(value || '').trim()) {
+      form.setFieldsValue({ Part_ID: undefined, Customer: undefined });
+    }
+  };
+
   // WO 号输入后自动调 Infor CSI IDO 带出 Part ID / Customer（站点由 SBU 决定）
   const handleWoLookup = async () => {
     const wo = String(form.getFieldValue('WO') || '').trim();
@@ -536,7 +543,10 @@ export default function NCNEntry() {
         if (resp.data.customer) fields.Customer = resp.data.customer;
         if (Object.keys(fields).length > 0) {
           form.setFieldsValue(fields);
-          message.success(`Infor 带出：Part ID = ${resp.data.item || '-'}, Customer = ${resp.data.customer || '-'}（站点 ${resp.data.site}）`);
+          message.success(
+            `Infor 带出：Part ID = ${resp.data.item || '-'}, Customer = ${resp.data.customer || '-'}` +
+              `（Job ${resp.data.job} / Suffix ${resp.data.suffix} @ ${resp.data.site}）`
+          );
         } else {
           message.warning(`工单 ${wo} 查询成功，但 Item / Customer 为空`);
         }
@@ -886,6 +896,7 @@ export default function NCNEntry() {
               <Form.Item name="WO" label="WO Number" rules={[{ required: true }]} extra="输入工单号后自动从 Infor 带出 Part ID / Customer">
                 <Input
                   placeholder="WO Number"
+                  onChange={(e) => handleWoChange(e.target.value)}
                   onBlur={handleWoLookup}
                   onPressEnter={(e) => {
                     (e.target as HTMLInputElement).blur();

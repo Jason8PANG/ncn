@@ -139,6 +139,10 @@ export interface IJobInfo {
   suffix: number;
   item: string;
   customer: string;
+  /** 实际用于查询的 Job（输入 J000000112-0000 时为 J000000112） */
+  queriedJob: string;
+  /** 实际用于查询的 Suffix */
+  queriedSuffix: number;
 }
 
 const httpsRequestJson = (url: string, options: https.RequestOptions): Promise<{ status: number; body: any }> => {
@@ -163,8 +167,24 @@ const httpsRequestJson = (url: string, options: https.RequestOptions): Promise<{
 };
 
 /**
+ * 解析工单号输入。
+ * M3 里 Job 和 Suffix 是两个字段，业务上常写成 `J000000112-0000` 这种形式：
+ *   J000000112-0000 → Job=J000000112, Suffix=0
+ *   J000000112-0001 → Job=J000000112, Suffix=1
+ *   J000035479      → Job=J000035479, Suffix=0
+ */
+export const parseJobInput = (input: string): { job: string; suffix: number } => {
+  const raw = String(input || '').trim();
+  const matched = /^(.+?)\s*-\s*(\d+)$/.exec(raw);
+  if (matched) {
+    return { job: matched[1].trim(), suffix: parseInt(matched[2], 10) };
+  }
+  return { job: raw, suffix: 0 };
+};
+
+/**
  * 按工单号查询 SLJobs，返回 Item 和 Customer（ue_GDL_Customer）。
- * @param job 工单号，如 J000035479
+ * @param job 工单号，支持 `J000035479` 或 `J000000112-0000` 形式
  * @param sbu 当前选中的 SBU（决定站点）
  */
 export const fetchJobInfo = async (job: string, sbu?: string | null): Promise<IJobInfo | null> => {
@@ -172,19 +192,28 @@ export const fetchJobInfo = async (job: string, sbu?: string | null): Promise<IJ
     throw new Error('CSI credentials not configured (CSI_AUTH_BASIC / CSI_USERNAME / CSI_PASSWORD)');
   }
 
-  const safeJob = String(job).trim().replace(/'/g, "''");
-  if (!safeJob) return null;
+  const rawInput = String(job || '').trim();
+  if (!rawInput) return null;
 
   const site = getSbuMongooseConfig(sbu);
   const properties = 'Job,Suffix,Item,ue_GDL_Customer';
-  const filter = `Job = '${safeJob}' And Suffix = 0`;
-  const url =
-    `${config.csi.idoBase}/ido/load/SLJobs` +
-    `?properties=${encodeURIComponent(properties)}` +
-    `&filter=${encodeURIComponent(filter)}`;
 
-  const doGet = (token: string) =>
-    httpsRequestJson(url, {
+  // 候选查询条件：先按解析出的 Job+Suffix；输入里带后缀时再试一次「整串当 Job、Suffix=0」的写法
+  const parsed = parseJobInput(rawInput);
+  const attempts: { job: string; suffix: number }[] = [parsed];
+  if (rawInput.includes('-')) {
+    attempts.push({ job: rawInput, suffix: 0 });
+  }
+
+  const doGet = (token: string, target: { job: string; suffix: number }) => {
+    const safeJob = target.job.replace(/'/g, "''");
+    const filter = `Job = '${safeJob}' And Suffix = ${target.suffix}`;
+    const url =
+      `${config.csi.idoBase}/ido/load/SLJobs` +
+      `?properties=${encodeURIComponent(properties)}` +
+      `&filter=${encodeURIComponent(filter)}`;
+    logger.info(`[CSI] Fetching SLJobs: Job=${target.job}, Suffix=${target.suffix}, site=${site}`);
+    return httpsRequestJson(url, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -193,30 +222,35 @@ export const fetchJobInfo = async (job: string, sbu?: string | null): Promise<IJ
       },
       timeout: config.csi.timeoutMs
     });
-
-  logger.info(`[CSI] Fetching SLJobs: Job=${safeJob}, site=${site}`);
-
-  let resp = await doGet(await getToken());
-  if (resp.status === 401) {
-    logger.warn('[CSI] Token expired, force refresh and retry');
-    resp = await doGet(await getToken(true));
-  }
-
-  if (resp.status !== 200) {
-    throw new Error(`SLJobs request failed: HTTP ${resp.status} ${JSON.stringify(resp.body).slice(0, 200)}`);
-  }
-
-  // 响应兼容 Items / value / records 三种格式
-  const payload = resp.body || {};
-  const rows: any[] = payload.Items || payload.value || payload.records || [];
-  if (!rows.length) {
-    return null;
-  }
-  const row = rows[0];
-  return {
-    job: String(row.Job ?? safeJob),
-    suffix: Number(row.Suffix ?? 0),
-    item: String(row.Item ?? '').trim(),
-    customer: String(row.ue_GDL_Customer ?? '').trim()
   };
+
+  for (const target of attempts) {
+    let resp = await doGet(await getToken(), target);
+    if (resp.status === 401) {
+      logger.warn('[CSI] Token expired, force refresh and retry');
+      resp = await doGet(await getToken(true), target);
+    }
+
+    if (resp.status !== 200) {
+      throw new Error(`SLJobs request failed: HTTP ${resp.status} ${JSON.stringify(resp.body).slice(0, 200)}`);
+    }
+
+    // 响应兼容 Items / value / records 三种格式
+    const payload = resp.body || {};
+    const rows: any[] = payload.Items || payload.value || payload.records || [];
+    if (rows.length) {
+      const row = rows[0];
+      return {
+        job: String(row.Job ?? target.job),
+        suffix: Number(row.Suffix ?? target.suffix),
+        item: String(row.Item ?? '').trim(),
+        customer: String(row.ue_GDL_Customer ?? '').trim(),
+        queriedJob: target.job,
+        queriedSuffix: target.suffix
+      };
+    }
+  }
+
+  logger.warn(`[CSI] SLJobs 未命中: input=${rawInput}, site=${site}`);
+  return null;
 };
