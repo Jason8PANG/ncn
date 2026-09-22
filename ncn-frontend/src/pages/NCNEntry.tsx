@@ -544,9 +544,13 @@ export default function NCNEntry() {
         if (Object.keys(fields).length > 0) {
           form.setFieldsValue(fields);
         } else {
+          // 工单存在但没带出数据：清掉 Part ID / Customer 的旧值（WO 保留）
+          form.setFieldsValue({ Part_ID: undefined, Customer: undefined });
           message.warning(`Work order ${wo} found, but Part ID / Customer is empty`);
         }
       } else {
+        // 工单找不到：清空 WO Number / Part ID / Customer 三个栏位，避免残留无效数据
+        form.setFieldsValue({ WO: undefined, Part_ID: undefined, Customer: undefined });
         message.warning(resp.error || `Work order ${wo} not found`);
       }
     } catch (error: any) {
