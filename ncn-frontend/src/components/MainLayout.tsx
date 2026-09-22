@@ -19,7 +19,8 @@ import { logout } from '../services/auth';
 const { Header, Sider, Content } = Layout;
 
 export default function MainLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  // 左侧菜单默认收起（只显示图标），点击 Header 上的图标再展开
+  const [collapsed, setCollapsed] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useRecoilValue(authState);

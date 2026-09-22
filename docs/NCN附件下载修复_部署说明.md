@@ -322,4 +322,22 @@ const ncnIdsWithAction = new Set(actionRows.map(r => Number(r.NCN_ID)));
 邮件链接（`issueLogUrl`）用的还是 `/issue-log/...` 路由，**功能不受影响**，只是文案没改名。
 要不要一起改，说一声。
 
+### 4. 左侧菜单默认收起
+
+`ncn-frontend/src/components/MainLayout.tsx`：
+
+```diff
+- const [collapsed, setCollapsed] = useState(false);   // 默认展开
++ const [collapsed, setCollapsed] = useState(true);    // 默认收起
+```
+
+- 默认只显示图标（Sider 宽 80px，顶部 logo 显示 `NCN`）
+- 点击 Header 左上角的图标（收起时是 `MenuUnfoldOutlined` ⇨）展开
+- 仅在**整页刷新**时回到收起状态；在应用内路由跳转（列表 ↔ 编辑）不会重置，
+  因为 `MainLayout` 是布局组件、不会卸载
+
+> 没做持久化（没往 localStorage/sessionStorage 存折叠状态）。
+> 如果需要「记住上次展开/收起」，说一声。
+
+
 
