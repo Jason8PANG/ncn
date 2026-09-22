@@ -325,7 +325,7 @@ export default function IssueLog() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
-        <Title level={3} style={{ marginBottom: 0 }}>Issue Log - NCN {id}</Title>
+        <Title level={3} style={{ marginBottom: 0 }}>NCN Action - NCN {id}</Title>
         <Space>
           {from === 'entry' ? (
             <Button icon={<RollbackOutlined />} onClick={() => navigate(`/ncn-entry/${id}`)}>

@@ -248,6 +248,78 @@ curl -s http://127.0.0.1:7000/api/health
 **验证**：`tsc --noEmit` 通过，产物 `index-DU6wG2FO.js` 中确认
 `label: name || lanId`、`filterOption`、`fontSize:13`、`useWatch` 均已生效。
 
-**未改动**：`IssueLog.tsx` 的「Action Owner」下拉**仍是** `${lanId} - ${name}`（写法相同）。
-如需一并改成姓名，说一声即可。
+**未改动**：`IssueLog.tsx` 的「Action Owner」下拉**仍是** `lanId - 姓名`（写法相同）。
+
+---
+
+## 本次（更新）：筛选保持 + Owner 显示账号 + NCN Action 标识
+
+> ⚠️ **这一批同时改了后端**（`ncn-web/src/routes/ncn.routes.ts`），
+> 所以**必须重建 ncn-web 容器**，不能只发前端。
+
+### 1. NCN List 筛选条件不再丢失
+
+**问题**：设好筛选 → 点编辑进 NCN Entry → 返回 NCN List，筛选条件全被清空，要重选一遍。
+
+**根因**：`NCNList` 的 `Form` 实例是组件局部的，组件卸载即销毁；`useEffect(..., [])`
+挂载时固定执行 `handleSearch({})`，所以每次回来都是「查全部 + 空表单」。
+
+**改法**：把筛选条件存进 **sessionStorage**（`ncn-list:filter`）
+- `handleSearch` 每次执行前 `saveFilter(values)`
+- 挂载时 `loadSavedFilter()` → 有则 `form.setFieldsValue()` 回填表单并直接用该条件查询
+- `Reset` 按钮额外 `clearSavedFilter()` + 回到第 1 页
+- `dayjs` 的 `dateRange` 序列化成 ISO 字符串，读回时还原成 `dayjs` 对象（否则 RangePicker 显示不出来）
+
+**为什么用 sessionStorage 而不是 URL query**：返回列表的入口有多处
+（NCN Entry 的 `Back to List`、保存后 `navigate('/ncn-list')`、侧边栏菜单），
+它们都不带 query，只有本地存储能覆盖全部返回路径。sessionStorage 按标签页隔离，关标签页自动清。
+
+> 注：**页码 (currentPage) 不持久化**，回来仍从第 1 页开始。需要一起记忆的话说一声。
+
+### 2. Owner 改回显示账号（lanId），不显示姓名
+
+| 位置 | 改前 | 改后 |
+|---|---|---|
+| NCN List「Owner」列 | 姓名（`周华云`） | **账号 `huayun.zhou`**（直出原值） |
+| NCN Entry「Owner / 责任人」下拉 | 姓名（`周华云`） | **账号 `huayun.zhou`** |
+| NCN List 的 Owner 筛选下拉 | `姓名 (账号)` | `账号 - 姓名` |
+
+依据：`NCN_Action_Detail.ActionOwner` 里存的就是纯账号（实测样例 `ju.wang`/`Cathy.lu`），
+NCN Action 页的 Action Owner 列也是直接显示该原值 → 两处显示口径统一。
+
+**姓名没有丢**：仍留在下拉 option 的 `name` 字段里，`filterOption` 支持
+「输账号」或「输姓名」都能搜到；入库值一直是 lanId，数据库未动。
+
+`fontSize: 13` 保留（账号较长时字段内可完整显示）。
+
+### 3. 「Issue Log」→「NCN Action」+ 已维护标识
+
+**文字改名**（仅页面文案，**未动数据库、未动路由 `/issue-log/:id`**）：
+
+| 位置 | 改前 | 改后 |
+|---|---|---|
+| NCN Action 页标题 | `Issue Log - NCN {id}` | `NCN Action - NCN {id}` |
+| NCN Entry 页按钮 | `Log Issue` | `NCN Action` |
+
+**新增「Act」列**：在 NCN List 的 `Att` 列右边，宽 50，居中。
+该 NCN 在 `NCN_Action_Detail` 里有记录时显示**绿色实心勾**，Tooltip `NCN Action maintained`；没有则不显示。
+
+**后端改动**（`ncn.routes.ts` 列表接口）：
+```ts
+// 一次取全部 DISTINCT NCN_ID，再内存比对，避免逐行 COUNT 的 N+1 查询
+const actionRows = await NCN_Action_Detail.findAll({
+  attributes: ['NCN_ID'], group: ['NCN_ID'], raw: true
+});
+const ncnIdsWithAction = new Set(actionRows.map(r => Number(r.NCN_ID)));
+// 每条 entry 补一个 HasAction 布尔字段
+```
+关联依据（实测）：`NCN_Action_Detail.NCN_ID` → `NCN_Entry.ROWID`，
+23918 行 Action 中 23899 行能匹配上（19 行为孤儿数据），
+**11642 个 NCN 已维护过 Action**。
+
+**未改**：`ncn-web/src/utils/email.ts:191-192` 的通知邮件里仍写着
+`Click below to view Issue Log:` / `Open Issue Log →`。
+邮件链接（`issueLogUrl`）用的还是 `/issue-log/...` 路由，**功能不受影响**，只是文案没改名。
+要不要一起改，说一声。
+
 

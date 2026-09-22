@@ -54,8 +54,8 @@ export default function NCNEntry() {
   const [lineLeaderLookupMessage, setLineLeaderLookupMessage] = useState('');
   const [ownerDeptOptions, setOwnerDeptOptions] = useState<{ value: string; label: string }[]>([]);
   const [ownerDeptLoading, setOwnerDeptLoading] = useState(false);
-  // Owner 下拉：value=lanId（入库值），label=姓名（显示），lanId 保留供搜索
-  const [ownerOptions, setOwnerOptions] = useState<{ value: string; label: string; lanId?: string }[]>([]);
+  // Owner 下拉：value=label=lanId（显示账号，与 NCN Action 页 Action Owner 一致），name 仅供搜索
+  const [ownerOptions, setOwnerOptions] = useState<{ value: string; label: string; name?: string }[]>([]);
   const [ownerLoading, setOwnerLoading] = useState(false);
   const [meOptions, setMeOptions] = useState<{ value: string; label: string }[]>([]);
   const [qeOptions, setQeOptions] = useState<{ value: string; label: string }[]>([]);
@@ -125,27 +125,28 @@ export default function NCNEntry() {
   /**
    * 加载 Owner / 责任人 下拉选项
    *
-   * label 显示「姓名」（如 周华云 / Noor Emelia），不再显示账号。
-   * lanId 仍保留在 value（入库值）和 lanId 字段里，供搜索与写库使用
-   * —— NCN_Entry.Owner 存的是 lanId，不能改。
+   * label 显示「账号」(lanId)，与本系统 NCN Action 页的 Action Owner 保持一致；
+   * name（姓名）仅保留在 option 上供搜索使用。
+   * value 就是 NCN_Entry.Owner 的入库值（lanId），不能改。
    *
    * @returns 本次加载的选项数组。调用方必须用返回值做匹配，
    *          不要读 ownerOptions state（setState 异步，闭包里拿到的是旧值）。
    */
   const loadOwnerOptions = async (
     dept: string
-  ): Promise<{ value: string; label: string; lanId: string }[]> => {
+  ): Promise<{ value: string; label: string; name: string }[]> => {
     setOwnerLoading(true);
     try {
       const response = await getOwnerOptions(dept);
       if (response.success && response.data?.owners) {
         const options = response.data.owners.map((o: any) => {
-          const name = String(o.name || '').trim();
           const lanId = String(o.lanId || '').trim();
           return {
             value: lanId,
-            label: name || lanId, // 姓名优先；姓名为空时退回账号，避免下拉出现空白项
-            lanId
+            // 显示账号（与本系统 NCN Action 页的 Action Owner 一致）。
+            // 姓名仍保留在 name 字段里，仅供 filterOption 搜索用。
+            label: lanId,
+            name: String(o.name || '').trim()
           };
         });
         setOwnerOptions(options);
@@ -760,7 +761,7 @@ export default function NCNEntry() {
               icon={<FileAddOutlined />}
               onClick={() => navigate(`/issue-log/${id}?from=entry`)}
             >
-              Log Issue
+              NCN Action
             </Button>
           )}
           <Button icon={<RollbackOutlined />} onClick={() => navigate('/ncn-list')}>
@@ -985,17 +986,18 @@ export default function NCNEntry() {
                   disabled={!ownerDeptValue}
                   showSearch
                   allowClear
-                  // label 是姓名，value/lanId 是账号 → 两种都能搜
+                  // label 和 value 都是账号 → 仍支持按账号或姓名搜索
                   filterOption={(input, option) => {
                     const kw = String(input || '').trim().toLowerCase();
                     if (!kw) return true;
                     const o = option as any;
                     return (
                       String(o?.label ?? '').toLowerCase().includes(kw) ||
-                      String(o?.lanId ?? o?.value ?? '').toLowerCase().includes(kw)
+                      String(o?.value ?? '').toLowerCase().includes(kw) ||
+                      String(o?.name ?? '').toLowerCase().includes(kw)
                     );
                   }}
-                  // 姓名较长时字号略小，保证在字段宽度内完整显示
+                  // 账号可能较长，字号略小以便在字段宽度内完整显示
                   style={{ fontSize: 13 }}
                 />
               </Form.Item>

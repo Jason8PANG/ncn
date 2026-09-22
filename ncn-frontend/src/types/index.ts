@@ -35,6 +35,8 @@ export interface INCN_Entry {
   QualityEngineer: string;
   Status?: string;
   FilePath?: string;
+  // 该 NCN 是否已维护过 NCN Action（由后端列表接口计算：NCN_Action_Detail 存在对应 NCN_ID）
+  HasAction?: boolean;
   Comments?: string;
   RejectDate?: Date;
   CloseBy?: string;

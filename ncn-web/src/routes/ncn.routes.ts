@@ -85,8 +85,26 @@ router.get('/', isAuthenticated, async (req: Request, res: Response) => {
       order: [['ROWID', 'DESC']]
     });
 
-    logger.info(`Fetched ${data.length} NCN records`);
-    res.json({ success: true, data: { entries: data, total: data.length } });
+    // 标记哪些 NCN 已维护过 NCN Action（NCN_Action_Detail.NCN_ID → NCN_Entry.ROWID），
+    // 供 NCN List 显示「已维护」标识 icon。
+    // 一次取全部 DISTINCT NCN_ID 再内存比对，避免逐行 COUNT 造成 N+1 查询。
+    const actionRows: any[] = await NCN_Action_Detail.findAll({
+      attributes: ['NCN_ID'],
+      group: ['NCN_ID'],
+      raw: true
+    });
+    const ncnIdsWithAction = new Set(
+      actionRows.map((r) => Number(r.NCN_ID)).filter((n) => !Number.isNaN(n))
+    );
+
+    const entries = data.map((entry: any) => {
+      const plain = entry.get({ plain: true });
+      plain.HasAction = ncnIdsWithAction.has(Number(plain.ROWID));
+      return plain;
+    });
+
+    logger.info(`Fetched ${entries.length} NCN records`);
+    res.json({ success: true, data: { entries, total: entries.length } });
   } catch (error: any) {
     logger.error('Error fetching NCN list:', error.message, error.stack);
     res.status(500).json({ error: 'Failed to fetch NCN list', details: error.message });

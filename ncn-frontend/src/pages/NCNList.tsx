@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Table, Card, Form, Input, Select, Button, Space, DatePicker, Tag, Typography, Dropdown, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { MenuProps } from 'antd';
-import { SearchOutlined, PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOutlined, DeleteOutlined, MoreOutlined, UndoOutlined, DownloadOutlined, PaperClipOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined, EyeOutlined, EditOutlined, CheckCircleOutlined, CheckCircleFilled, DeleteOutlined, MoreOutlined, UndoOutlined, DownloadOutlined, PaperClipOutlined } from '@ant-design/icons';
 import { useRecoilValue } from 'recoil';
 import { authState } from '../state/auth';
 import { queryNCNs } from '../services/ncn';
@@ -16,6 +16,74 @@ import * as XLSX from 'xlsx';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
+
+/**
+ * 筛选条件持久化
+ *
+ * 场景：用户设好筛选 → 点编辑进 NCN Entry → 返回 NCN List，筛选条件不能丢。
+ * 用 sessionStorage（按标签页隔离、关标签页即清）而不是 URL query，
+ * 因为返回列表的入口有多处（NCN Entry 的 Back to List / 保存后跳转 / 侧边栏菜单），
+ * 它们都不会带上 query，只有本地存储能覆盖所有返回路径。
+ */
+const FILTER_STORAGE_KEY = 'ncn-list:filter';
+
+/** 把表单值序列化（dayjs 对象转 ISO 字符串，空值丢弃） */
+const serializeFilter = (values: any): Record<string, any> => {
+  const out: Record<string, any> = {};
+  Object.entries(values || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    if (key === 'dateRange' && Array.isArray(value) && value.length === 2) {
+      const toIso = (v: any) => (v && typeof v.toISOString === 'function' ? v.toISOString() : String(v));
+      out[key] = [toIso(value[0]), toIso(value[1])];
+      return;
+    }
+    if (Array.isArray(value) && value.length === 0) return;
+    out[key] = value;
+  });
+  return out;
+};
+
+/** 反序列化（dateRange 的 ISO 字符串还原成 dayjs 对象，否则 RangePicker 显示不出来） */
+const deserializeFilter = (raw: Record<string, any>): Record<string, any> => {
+  const out: Record<string, any> = { ...raw };
+  if (Array.isArray(raw?.dateRange) && raw.dateRange.length === 2) {
+    out.dateRange = [dayjs(raw.dateRange[0]), dayjs(raw.dateRange[1])];
+  }
+  return out;
+};
+
+const saveFilter = (values: any) => {
+  try {
+    const payload = serializeFilter(values);
+    if (Object.keys(payload).length === 0) {
+      sessionStorage.removeItem(FILTER_STORAGE_KEY);
+    } else {
+      sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(payload));
+    }
+  } catch {
+    // sessionStorage 不可用（隐私模式/被禁用）时静默降级为不持久化
+  }
+};
+
+const loadSavedFilter = (): Record<string, any> | null => {
+  try {
+    const raw = sessionStorage.getItem(FILTER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Object.keys(parsed).length === 0) return null;
+    return deserializeFilter(parsed);
+  } catch {
+    return null;
+  }
+};
+
+const clearSavedFilter = () => {
+  try {
+    sessionStorage.removeItem(FILTER_STORAGE_KEY);
+  } catch {
+    /* 忽略 */
+  }
+};
 
 export default function NCNList() {
   const [data, setData] = useState<INCN_Entry[]>([]);
@@ -32,8 +100,6 @@ export default function NCNList() {
   const [meOptions, setMeOptions] = useState<{ value: string; label: string }[]>([]);
   const [qeOptions, setQeOptions] = useState<{ value: string; label: string }[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<{ value: string; label: string }[]>([]);
-  // Owner 账号(lanId) → 姓名 映射，供列表 Owner 列显示姓名（找不到则回退显示账号）
-  const [ownerNameMap, setOwnerNameMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     getSBUDesOptions()
@@ -73,21 +139,13 @@ export default function NCNList() {
       .then((response) => {
         if (response.success && Array.isArray(response.data?.owners)) {
           const list = (response.data.owners as { lanId: string; name: string }[]) || [];
-          // 筛选下拉：label 保持「姓名 (账号)」，便于在宽下拉里区分同名
+          // 筛选下拉的 label 保持「账号 - 姓名」便于在宽下拉里区分同名
+          // （列表 Owner 列本身显示账号原值，见 Owner 列定义）
           setOwnerOptions(
             list.map((o) => ({
               value: o.lanId,
-              label: `${o.name} (${o.lanId})`
+              label: `${o.lanId} - ${o.name}`
             }))
-          );
-          // Owner 列渲染用：账号 → 姓名（key 统一小写，匹配大小写不一致的历史数据）
-          setOwnerNameMap(
-            list.reduce<Record<string, string>>((acc, o) => {
-              const lanId = String(o.lanId || '').trim().toLowerCase();
-              const name = String(o.name || '').trim();
-              if (lanId && name) acc[lanId] = name;
-              return acc;
-            }, {})
           );
         }
       })
@@ -113,6 +171,19 @@ export default function NCNList() {
                 void downloadAttachment(record.FilePath as string);
               }}
             />
+          </Tooltip>
+        ) : null
+    },
+    {
+      // 已维护 NCN Action 的标识（后端按 NCN_Action_Detail 是否存在对应 NCN_ID 计算）
+      title: 'Act',
+      key: 'hasAction',
+      width: 50,
+      align: 'center' as const,
+      render: (_: any, record: INCN_Entry) =>
+        record.HasAction ? (
+          <Tooltip title="NCN Action maintained">
+            <CheckCircleFilled style={{ color: '#52c41a' }} />
           </Tooltip>
         ) : null
     },
@@ -222,13 +293,8 @@ export default function NCNList() {
       title: 'Owner',
       dataIndex: 'Owner',
       key: 'Owner',
-      width: 110,
-      // 显示姓名（如 周华云 / Noor Emelia），映射不到时回退显示账号
-      render: (owner: string) => {
-        if (!owner) return null;
-        const name = ownerNameMap[String(owner).trim().toLowerCase()];
-        return name || owner;
-      }
+      width: 110
+      // 直接显示账号(如 ju.wang)，与本系统 NCN Action 页的 Action Owner 列保持一致
     },
     {
       title: 'Action',
@@ -382,6 +448,8 @@ export default function NCNList() {
 
   const handleSearch = async (values: any) => {
     setLoading(true);
+    // 记住本次筛选条件，从 NCN Entry / NCN Action 返回列表时自动还原
+    saveFilter(values);
     try {
       const params: INCNQueryParams = {};
       if (values.serialNo) params.serialNo = values.serialNo;
@@ -478,7 +546,16 @@ export default function NCNList() {
   };
 
   useEffect(() => {
-    handleSearch({});
+    // 首次进入时还原上次的筛选条件（若有），否则查全部
+    const saved = loadSavedFilter();
+    if (saved) {
+      form.setFieldsValue(saved);
+      void handleSearch(saved);
+    } else {
+      void handleSearch({});
+    }
+    // 仅在挂载时执行一次；handleSearch / form 为稳定引用，故意不进依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -559,7 +636,16 @@ export default function NCNList() {
               <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
                 Search
               </Button>
-              <Button onClick={() => form.resetFields()}>Reset</Button>
+              <Button
+                onClick={() => {
+                  form.resetFields();
+                  clearSavedFilter();
+                  setCurrentPage(1);
+                  void handleSearch({});
+                }}
+              >
+                Reset
+              </Button>
               <Button icon={<DownloadOutlined />} onClick={handleExportExcel}>
                 Export
               </Button>
