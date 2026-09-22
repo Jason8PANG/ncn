@@ -359,6 +359,14 @@ const ncnIdsWithAction = new Set(actionRows.map(r => Number(r.NCN_ID)));
 > 未对 SBU 列加 `ellipsis`。如果现场发现 `Penang Plant` 偶尔被截断，可
 > 调回 130 或加 `ellipsis: { showTitle: false }` + Tooltip（同 Defect Description 列写法）。
 
+### 6. NCN List 默认每页 10 条
+
+`NCNList.tsx`：`useState(50)` → `useState(10)`。
+
+`pagination` 的 `showSizeChanger: true` 保持不变，用户仍可手动切 10 / 20 / 50 / 100
+（antd 默认 `pageSizeOptions` 就含这四档）。
+
+
 
 
 

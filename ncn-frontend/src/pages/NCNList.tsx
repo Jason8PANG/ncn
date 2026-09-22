@@ -90,7 +90,8 @@ export default function NCNList() {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  // 默认每页 10 条（仍保留 showSizeChanger，可切 10/20/50/100）
+  const [pageSize, setPageSize] = useState(10);
   const [form] = Form.useForm();
   const { user } = useRecoilValue(authState);
   const navigate = useNavigate();
