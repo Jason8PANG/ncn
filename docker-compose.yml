@@ -24,6 +24,11 @@ services:
       - LDAP_BIND_CREDENTIALS=${LDAP_BIND_CREDENTIALS}
       - LDAP_SEARCH_FILTER=${LDAP_SEARCH_FILTER}
       - SESSION_SECRET=${SESSION_SECRET}
+      # ⚠️ 必须配置：不设时后端会回落到代码里硬编码的公开默认值
+      #（ncn-web/src/config/index.ts: 'ncn-jwt-secret-change-in-production'），
+      # 任何人都可伪造任意用户（含 Admin）的登录 Cookie，绕过 LDAP 直接进系统。
+      # 生成：openssl rand -hex 32
+      - JWT_SECRET=${JWT_SECRET}
       - NCN_ADMIN_LAN_IDS=${NCN_ADMIN_LAN_IDS}
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}

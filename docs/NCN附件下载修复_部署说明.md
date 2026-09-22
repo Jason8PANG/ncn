@@ -1,8 +1,14 @@
 # NCN 附件下载入口修复 — 部署说明
 
-**提交**：见本次 commit（`master` 分支）
-**改动范围**：**仅前端**。后端 `ncn-web` 无改动，**不需要重建容器**。
-**预计耗时**：3–5 分钟（服务器端构建，node_modules 已就绪）
+**提交**：`master` 分支，共 2 个 commit
+- `a0e5017` 前端附件下载入口修复
+- 后续 commit：`docker-compose.yml` 补传 `JWT_SECRET`
+
+**改动范围**：
+- 前端代码修复 → **只需重新发布前端**，`ncn-web` 容器**不需要**重建
+- `docker-compose.yml` 补传变量 → 这一步**另算**（见第五节），只有你决定修 JWT_SECRET 时才需要 `docker compose up -d --build ncn-web`
+
+**预计耗时**：前端 3–5 分钟（服务器端构建，node_modules 已就绪）
 
 ---
 
@@ -133,32 +139,45 @@ secret: process.env.JWT_SECRET || 'ncn-jwt-secret-change-in-production',
 ## 修复步骤
 
 ```bash
-# 1. 生成强密钥并写入 .env
+# 1. 备份并生成强密钥写入 .env
 cd /root/ncn
 cp .env .env.bak.$(date +%Y%m%d_%H%M)
 NEW_SECRET=$(openssl rand -hex 32)
 grep -q '^JWT_SECRET=' .env && sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$NEW_SECRET|" .env || echo "JWT_SECRET=$NEW_SECRET" >> .env
-grep '^JWT_SECRET=' .env
+grep '^JWT_SECRET=' .env    # 确认已写入，长度应为 64
 ```
 
-**2. ⚠️ 关键：`docker-compose.yml` 目前根本没把 `JWT_SECRET` 传给容器**，必须补一行。
-在 `services.ncn-web.environment` 下（紧跟 `- SESSION_SECRET=${SESSION_SECRET}` 后面）加入：
+**2. `docker-compose.yml` 里补传变量 —— 已随代码提交，`git pull` 后就位，不用手改。**
 
 ```yaml
+      # （已在仓库中）
       - JWT_SECRET=${JWT_SECRET}
 ```
 
+> 此前 compose **完全没有把这个变量传给容器**，所以哪怕 `.env` 里写了也不会生效。
+> 这是本次一并修掉的根因。
+
 ```bash
-# 3. 重建后端
+# 3. 确认 compose 能正确解析出值（应看到 JWT_SECRET: <64位十六进制>，且无 "not set" 警告）
+cd /root/ncn && docker compose config | grep -A1 JWT_SECRET
+
+# 4. 重建后端
 cd /root/ncn && docker compose up -d --build ncn-web
 
-# 4. 验证容器里已拿到（长度应为 64）
+# 5. 验证容器里已拿到真实值（长度应为 64，且不是 ncn-jwt-secret-change-in-production）
 docker inspect ncn-web --format '{{json .Config.Env}}' | tr ',' '\n' | grep JWT_SECRET
 
-# 5. 验证服务健康
+# 6. 验证服务健康
 docker compose ps ncn-web
 curl -s http://127.0.0.1:7000/api/health
 ```
+
+### ⚠️ 只加 compose 那行是**不够的**
+
+`JWT_SECRET` 在 `.env` 里为空白时，容器会拿到 `JWT_SECRET=`（空字符串），
+代码里 `process.env.JWT_SECRET || '默认值'` 仍是**假值** → **继续用公开默认密钥，漏洞依旧**。
+
+**必须 `.env` 里确实写入了真实值（第 1 步）。** 第 5 步的验证就是用来确认这一点的。
 
 ## ⚠️ 副作用（务必提前通知用户）
 
@@ -168,7 +187,12 @@ curl -s http://127.0.0.1:7000/api/health
 
 ## 为什么之前一直没人发现
 
-容器里配了 `SESSION_SECRET`（历史上用 session 认证时留下的），看起来"密钥已经配了"，容易误判。而 JWT 用的是另一个变量名 `JWT_SECRET`，两边都没人核对。
+两个原因叠加：
+1. 容器里配了 `SESSION_SECRET`（历史上用 session 认证时留下的），看起来"密钥已经配了"，容易误判——而 JWT 用的是另一个变量名 `JWT_SECRET`。
+2. **`docker-compose.yml` 的 `environment` 列表里根本没有 `JWT_SECRET`**，即使当时有人往 `.env` 里加过，也不会传进容器。
+
+`.env.example` 里其实是写了 `JWT_SECRET=your-jwt-secret-key-here` 的，只是没人对照检查实际部署。
+
 
 ---
 
