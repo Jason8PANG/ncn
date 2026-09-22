@@ -508,9 +508,9 @@ export default function NCNEntry() {
         if (me && !meNow) {
           form.setFieldsValue({ ME_Engineer: me });
           setAutoAssignedME(me);
-          message.info(`ME Engineer auto-assigned: ${me}`);
+          message.info(`已自动分配 ME 工程师：${me}`);
         } else if (!me && !meNow) {
-          message.warning('未找到启用中的 ME Engineer 推荐，请手动选择');
+          message.warning('未找到启用中的 ME 工程师推荐，请手动选择');
         }
       } catch {
         // ignore
@@ -543,12 +543,8 @@ export default function NCNEntry() {
         if (resp.data.customer) fields.Customer = resp.data.customer;
         if (Object.keys(fields).length > 0) {
           form.setFieldsValue(fields);
-          message.success(
-            `Infor 带出：Part ID = ${resp.data.item || '-'}, Customer = ${resp.data.customer || '-'}` +
-              `（Job ${resp.data.job} / Suffix ${resp.data.suffix} @ ${resp.data.site}）`
-          );
         } else {
-          message.warning(`工单 ${wo} 查询成功，但 Item / Customer 为空`);
+          message.warning(`工单 ${wo} 查询成功，但料号与客户为空`);
         }
       } else {
         message.warning(resp.error || `工单 ${wo} 未找到`);
@@ -893,7 +889,7 @@ export default function NCNEntry() {
 
           <Row gutter={16}>
             <Col span={6}>
-              <Form.Item name="WO" label="WO Number" rules={[{ required: true }]} extra="输入工单号后自动从 Infor 带出 Part ID / Customer">
+              <Form.Item name="WO" label="WO Number" rules={[{ required: true }]} extra="输入工单号后自动带出料号与客户名称">
                 <Input
                   placeholder="WO Number"
                   onChange={(e) => handleWoChange(e.target.value)}
